@@ -3,68 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>股票分析系统 - A股港股真实数据</title>
+    <title>股票分析系统 - A股真实数据</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
-        
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
             background: white;
             border-radius: 12px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             overflow: hidden;
         }
-        
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 30px;
         }
-        
-        .header h1 {
-            font-size: 28px;
-            margin-bottom: 10px;
-        }
-        
-        .header p {
-            opacity: 0.9;
-            font-size: 14px;
-        }
-        
+        .header h1 { font-size: 28px; margin-bottom: 10px; }
+        .header p { opacity: 0.9; font-size: 14px; }
         .info-bar {
             background: #e3f2fd;
             padding: 15px 30px;
             border-bottom: 1px solid #dee2e6;
         }
-        
         .info-bar ul {
             display: flex;
             flex-wrap: wrap;
             gap: 20px;
             list-style: none;
         }
-        
-        .info-bar li {
-            color: #1976d2;
-            font-size: 13px;
-        }
-        
-        .info-bar li strong {
-            color: #0d47a1;
-        }
-        
+        .info-bar li { color: #1976d2; font-size: 13px; }
+        .info-bar li strong { color: #0d47a1; }
         .control-panel {
             padding: 20px 30px;
             background: #f8f9fa;
@@ -74,7 +49,6 @@
             gap: 15px;
             align-items: center;
         }
-        
         .control-group {
             display: flex;
             align-items: center;
@@ -84,12 +58,7 @@
             border-radius: 6px;
             border: 1px solid #dee2e6;
         }
-        
-        .control-group label {
-            font-weight: 500;
-            color: #495057;
-        }
-        
+        .control-group label { font-weight: 500; color: #495057; }
         button {
             padding: 8px 20px;
             background: #007bff;
@@ -100,24 +69,10 @@
             font-size: 14px;
             transition: all 0.3s;
         }
-        
-        button:hover {
-            background: #0056b3;
-            transform: translateY(-1px);
-        }
-        
-        button.running {
-            background: #28a745;
-        }
-        
-        button.stopped {
-            background: #dc3545;
-        }
-        
-        button.danger {
-            background: #dc3545;
-        }
-        
+        button:hover { background: #0056b3; transform: translateY(-1px); }
+        button.running { background: #28a745; }
+        button.stopped { background: #dc3545; }
+        button.danger { background: #dc3545; }
         input[type="number"] {
             width: 70px;
             padding: 6px;
@@ -125,14 +80,12 @@
             border-radius: 4px;
             text-align: center;
         }
-        
         .countdown {
             font-size: 20px;
             font-weight: bold;
             color: #007bff;
             min-width: 40px;
         }
-        
         .stats-bar {
             padding: 15px 30px;
             background: white;
@@ -141,7 +94,6 @@
             align-items: center;
             border-bottom: 1px solid #dee2e6;
         }
-        
         .badge {
             background: #28a745;
             color: white;
@@ -149,22 +101,19 @@
             border-radius: 20px;
             font-size: 13px;
         }
-        
         .table-container {
             overflow-x: auto;
-            max-height: 60vh;
+            max-height: 70vh;
             overflow-y: auto;
         }
-        
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 13px;
+            font-size: 12px;
         }
-        
         th {
             background: #f8f9fa;
-            padding: 12px 8px;
+            padding: 12px 6px;
             text-align: center;
             font-weight: 600;
             color: #495057;
@@ -172,44 +121,25 @@
             position: sticky;
             top: 0;
             z-index: 10;
+            white-space: nowrap;
         }
-        
         td {
-            padding: 10px 8px;
+            padding: 8px 6px;
             text-align: center;
             border-bottom: 1px solid #dee2e6;
         }
-        
-        tr:hover {
-            background: #f8f9fa;
-        }
-        
-        .red {
-            background: #ffebee;
-            color: #c62828;
-            font-weight: bold;
-        }
-        
-        .green {
-            background: #e8f5e9;
-            color: #2e7d32;
-            font-weight: bold;
-        }
-        
+        tr:hover { background: #f8f9fa; }
+        .red { background: #ffebee; color: #c62828; font-weight: bold; }
+        .green { background: #e8f5e9; color: #2e7d32; font-weight: bold; }
         input[type="text"] {
-            width: 110px;
+            width: 100px;
             padding: 6px;
             border: 1px solid #ced4da;
             border-radius: 4px;
             text-align: center;
-            font-size: 12px;
+            font-size: 11px;
         }
-        
-        .stock-name {
-            font-weight: 600;
-            color: #007bff;
-        }
-        
+        .stock-name { font-weight: 600; color: #007bff; }
         .error-message {
             background: #ffebee;
             color: #c62828;
@@ -218,7 +148,6 @@
             border-radius: 6px;
             display: none;
         }
-        
         .loading {
             display: inline-block;
             width: 14px;
@@ -228,12 +157,10 @@
             border-radius: 50%;
             animation: spin 0.6s linear infinite;
         }
-        
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
         .status-badge {
             display: inline-block;
             padding: 2px 8px;
@@ -241,36 +168,24 @@
             font-size: 11px;
             font-weight: 600;
         }
-        
-        .status-sh {
-            background: #ff9800;
-            color: white;
-        }
-        
-        .status-sz {
-            background: #4caf50;
-            color: white;
-        }
-        
-        .status-hk {
-            background: #2196f3;
-            color: white;
-        }
+        .status-sh { background: #ff9800; color: white; }
+        .status-sz { background: #4caf50; color: white; }
+        .tooltip { cursor: help; border-bottom: 1px dotted #999; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>📈 股票分析系统</h1>
-            <p>基于真实历史数据 | 支持A股、港股 | 数据来源: akshare</p>
+            <p>基于真实历史数据 | 支持A股 | 多维度均价分析</p>
         </div>
         
         <div class="info-bar">
             <ul>
-                <li><strong>📌 A股上海</strong> 6开头代码，如 600519(茅台)、600905(三峡)</li>
+                <li><strong>📌 A股上海</strong> 6开头代码，如 600519(茅台)</li>
                 <li><strong>📌 A股深圳</strong> 0/3开头代码，如 000001(平安)、300750(宁德)</li>
-                <li><strong>📌 港股</strong> 代码+HK，如 0700.HK(腾讯)、9988.HK(阿里)</li>
-                <li><strong>💡 提示</strong> 所有数据均为真实历史数据，无模拟数据</li>
+                <li><strong>💡 指标说明</strong> 日均:上市至今均价 | 周均:每周五均价 | 月均:每月末均价</li>
+                <li><strong>💡 指标说明</strong> 季均:每季末均价 | 年均:每年末均价 | 总均价:五者平均值</li>
             </ul>
         </div>
         
@@ -278,31 +193,25 @@
             <div class="control-group">
                 <button id="toggleBtn" class="running">运行中</button>
             </div>
-            
             <div class="control-group">
                 <label>更新间隔(秒):</label>
                 <input id="intervalInput" type="number" value="30" min="10" max="300">
             </div>
-            
             <div class="control-group">
                 <label>倒计时:</label>
                 <span id="countdownDisplay" class="countdown">30</span>
             </div>
-            
             <div class="control-group">
                 <label>当前时间:</label>
                 <span id="timeDisplay"></span>
             </div>
-            
             <button id="refreshBtn">🔄 立即刷新</button>
             <button id="addRowBtn">➕ 添加股票</button>
             <button id="clearCacheBtn" class="danger">🗑️ 清除缓存</button>
         </div>
         
         <div class="stats-bar">
-            <div>
-                <span class="badge" id="stockCount">0</span> 只股票
-            </div>
+            <div><span class="badge" id="stockCount">0</span> 只股票</div>
             <div id="updateStatus" style="color: #6c757d; font-size: 12px;"></div>
         </div>
         
@@ -312,42 +221,30 @@
             <table>
                 <thead>
                     <tr>
-                        <th>代码</th>
-                        <th>名称</th>
-                        <th>市场</th>
-                        <th>年限</th>
-                        <th>MA30<br>(日均)</th>
-                        <th>MA60<br>(月均)</th>
-                        <th>MA250<br>(年均)</th>
-                        <th>最低价</th>
-                        <th>最高价</th>
-                        <th>总均价</th>
-                        <th>现价</th>
-                        <th>差价</th>
-                        <th>操作</th>
+                        <th>代码</th><th>名称</th><th>市场</th><th>年限<br>(年)</th>
+                        <th class="tooltip" title="上市至今所有交易日平均价">日均<br>(元)</th>
+                        <th class="tooltip" title="每周最后一个交易日平均价">周均<br>(元)</th>
+                        <th class="tooltip" title="每月最后一个交易日平均价">月均<br>(元)</th>
+                        <th class="tooltip" title="每季度最后一个交易日平均价">季均<br>(元)</th>
+                        <th class="tooltip" title="每年最后一个交易日平均价">年均<br>(元)</th>
+                        <th class="tooltip" title="日均+周均+月均+季均+年均的平均值">总均价<br>(元)</th>
+                        <th>最低价<br>(元)</th><th>最高价<br>(元)</th><th>现价<br>(元)</th><th>差价<br>(元)</th><th>操作</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
-                    <tr>
-                        <td colspan="13" style="text-align: center; padding: 40px;">
-                            <div class="loading"></div> 加载中...
-                        </td>
-                    </tr>
+                    <tr><td colspan="15" style="text-align: center; padding: 40px;"><div class="loading"></div> 加载中...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
     <script>
-        // 状态管理
         let running = true;
         let countdown = 30;
         let stocks = [];
-        let updateTimer = null;
         let countdownTimer = null;
         let isUpdating = false;
         
-        // DOM元素
         const tableBody = document.getElementById('tableBody');
         const toggleBtn = document.getElementById('toggleBtn');
         const intervalInput = document.getElementById('intervalInput');
@@ -360,46 +257,37 @@
         const stockCount = document.getElementById('stockCount');
         const updateStatus = document.getElementById('updateStatus');
         
-        // 初始化股票列表 - 只保留A股和港股
-function initStocks() {
-    const savedStocks = localStorage.getItem('stocks');
-    if (savedStocks) {
-        stocks = JSON.parse(savedStocks);
-    } else {
-        stocks = [
-            { code: '600519', name: '贵州茅台', data: null },
-            { code: '600905', name: '三峡能源', data: null },
-            { code: '000858', name: '五粮液', data: null },
-            { code: '300750', name: '宁德时代', data: null },
-            { code: '000001', name: '平安银行', data: null },
-            { code: '002594', name: '比亚迪', data: null },
-            { code: '601318', name: '中国平安', data: null },
-            { code: '600036', name: '招商银行', data: null },
-            { code: '0700.HK', name: '腾讯控股', data: null },
-            { code: '9988.HK', name: '阿里巴巴', data: null },
-            { code: '0005.HK', name: '汇丰控股', data: null }
-        ];
-    }
-    updateStockCount();
-}
+        function initStocks() {
+            const savedStocks = localStorage.getItem('stocks');
+            if (savedStocks) {
+                stocks = JSON.parse(savedStocks);
+            } else {
+                stocks = [
+                    { code: '600519', name: '贵州茅台', data: null },
+                    { code: '600905', name: '三峡能源', data: null },
+                    { code: '000858', name: '五粮液', data: null },
+                    { code: '300750', name: '宁德时代', data: null },
+                    { code: '002594', name: '比亚迪', data: null },
+                    { code: '601318', name: '中国平安', data: null },
+                    { code: '600036', name: '招商银行', data: null }
+                ];
+            }
+            updateStockCount();
+        }
         
-        // 获取市场类型
         function getMarketType(code) {
             if (!code) return '未知';
             if (/^6\d{5}$/.test(code)) return '沪市';
             if (/^[03]\d{5}$/.test(code)) return '深市';
-            if (code.includes('.HK')) return '港股';
             return '未知';
         }
         
         function getMarketClass(code) {
             if (/^6\d{5}$/.test(code)) return 'status-sh';
             if (/^[03]\d{5}$/.test(code)) return 'status-sz';
-            if (code.includes('.HK')) return 'status-hk';
             return '';
         }
         
-        // 渲染表格
         function renderTable() {
             if (!tableBody) return;
             tableBody.innerHTML = '';
@@ -407,7 +295,6 @@ function initStocks() {
             stocks.forEach((stock, index) => {
                 const row = document.createElement('tr');
                 
-                // 代码列
                 const codeCell = document.createElement('td');
                 const codeInput = document.createElement('input');
                 codeInput.type = 'text';
@@ -424,13 +311,11 @@ function initStocks() {
                 codeCell.appendChild(codeInput);
                 row.appendChild(codeCell);
                 
-                // 名称列
                 const nameCell = document.createElement('td');
                 nameCell.textContent = stock.name || '-';
                 nameCell.className = 'stock-name';
                 row.appendChild(nameCell);
                 
-                // 市场列
                 const marketCell = document.createElement('td');
                 const marketBadge = document.createElement('span');
                 marketBadge.className = `status-badge ${getMarketClass(stock.code)}`;
@@ -438,14 +323,12 @@ function initStocks() {
                 marketCell.appendChild(marketBadge);
                 row.appendChild(marketCell);
                 
-                // 数据列
-                for (let i = 0; i < 9; i++) {
+                for (let i = 0; i < 11; i++) {
                     const cell = document.createElement('td');
                     cell.textContent = '-';
                     row.appendChild(cell);
                 }
                 
-                // 操作列
                 const actionCell = document.createElement('td');
                 const deleteBtn = document.createElement('button');
                 deleteBtn.textContent = '删除';
@@ -468,42 +351,38 @@ function initStocks() {
             });
         }
         
-        // 更新行数据
         function updateRowData(row, data) {
             if (!row || !data) return;
-            
             const cells = row.cells;
-            if (cells.length < 13) return;
+            if (cells.length < 15) return;
             
             cells[1].textContent = data.name || data.code;
-            cells[3].textContent = data.years || '-';
-            cells[4].textContent = data.dayAvg ? data.dayAvg.toFixed(2) : '-';
-            cells[5].textContent = data.monthAvg ? data.monthAvg.toFixed(2) : '-';
-            cells[6].textContent = data.yearAvg ? data.yearAvg.toFixed(2) : '-';
-            cells[7].textContent = data.low ? data.low.toFixed(2) : '-';
-            cells[8].textContent = data.high ? data.high.toFixed(2) : '-';
-            cells[9].textContent = data.totalAvg ? data.totalAvg.toFixed(2) : '-';
-            cells[10].textContent = data.price ? data.price.toFixed(2) : '-';
+            cells[3].textContent = data.years ? data.years.toFixed(1) + '年' : '-';
+            cells[4].textContent = data.day_avg ? data.day_avg.toFixed(2) : '-';
+            cells[5].textContent = data.week_avg ? data.week_avg.toFixed(2) : '-';
+            cells[6].textContent = data.month_avg ? data.month_avg.toFixed(2) : '-';
+            cells[7].textContent = data.season_avg ? data.season_avg.toFixed(2) : '-';
+            cells[8].textContent = data.year_avg ? data.year_avg.toFixed(2) : '-';
+            cells[9].textContent = data.total_avg ? data.total_avg.toFixed(2) : '-';
+            cells[10].textContent = data.low ? data.low.toFixed(2) : '-';
+            cells[11].textContent = data.high ? data.high.toFixed(2) : '-';
+            cells[12].textContent = data.price ? data.price.toFixed(2) : '-';
             
-            if (data.price && data.totalAvg) {
-                const diff = data.price - data.totalAvg;
-                cells[11].textContent = diff.toFixed(2);
-                cells[11].className = diff >= 0 ? 'green' : 'red';
+            if (data.price && data.total_avg) {
+                const diff = data.price - data.total_avg;
+                cells[13].textContent = diff.toFixed(2);
+                cells[13].className = diff >= 0 ? 'green' : 'red';
             }
         }
         
-        // 获取股票数据
         async function fetchStockData(code) {
-            if (!code) return null;
-            
+            if (!code || code.length !== 6) return null;
             try {
                 const response = await fetch(`/api/stock?code=${encodeURIComponent(code)}`);
                 const data = await response.json();
-                
                 if (!response.ok || data.error) {
                     throw new Error(data.message || data.error || '获取失败');
                 }
-                
                 return data;
             } catch (error) {
                 console.error(`获取${code}失败:`, error);
@@ -511,7 +390,6 @@ function initStocks() {
             }
         }
         
-        // 更新所有股票
         async function updateAllStocks() {
             if (isUpdating) {
                 console.log('正在更新中，跳过本次请求');
@@ -527,14 +405,13 @@ function initStocks() {
             
             for (let i = 0; i < stocks.length; i++) {
                 const stock = stocks[i];
-                if (!stock.code) continue;
+                if (!stock.code || stock.code.length !== 6) continue;
                 
                 const row = tableBody.children[i];
                 if (!row) continue;
                 
                 try {
-                    // 显示加载中
-                    for (let j = 3; j <= 11; j++) {
+                    for (let j = 3; j <= 13; j++) {
                         if (row.cells[j]) {
                             row.cells[j].innerHTML = '<div class="loading"></div>';
                         }
@@ -549,9 +426,8 @@ function initStocks() {
                         successCount++;
                     }
                 } catch (error) {
-                    console.error(`更新${stock.code}失败:`, error);
                     failCount++;
-                    for (let j = 3; j <= 11; j++) {
+                    for (let j = 3; j <= 13; j++) {
                         if (row.cells[j]) {
                             row.cells[j].textContent = '错误';
                         }
@@ -559,8 +435,7 @@ function initStocks() {
                     showError(`${stock.code}: ${error.message}`, true);
                 }
                 
-                // 延迟避免请求过快
-                await new Promise(resolve => setTimeout(resolve, 800));
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
             
             saveStocks();
@@ -574,14 +449,13 @@ function initStocks() {
             isUpdating = false;
         }
         
-        // 保存股票列表
         function saveStocks() {
             localStorage.setItem('stocks', JSON.stringify(stocks));
             updateStockCount();
         }
         
         function updateStockCount() {
-            const validCount = stocks.filter(s => s.code && s.code.trim()).length;
+            const validCount = stocks.filter(s => s.code && s.code.length === 6).length;
             stockCount.textContent = validCount;
         }
         
@@ -597,7 +471,6 @@ function initStocks() {
             }
         }
         
-        // 清除缓存
         async function clearCache() {
             try {
                 const response = await fetch('/api/stock/clear', { method: 'POST' });
@@ -612,7 +485,6 @@ function initStocks() {
             }
         }
         
-        // 检查服务健康状态
         async function checkHealth() {
             try {
                 const response = await fetch('/api/health');
@@ -625,14 +497,12 @@ function initStocks() {
             }
         }
         
-        // 启动定时器
         function startTimers() {
-            // 更新时间显示
             setInterval(() => {
                 timeDisplay.textContent = new Date().toLocaleTimeString();
             }, 1000);
             
-            // 更新倒计时
+            if (countdownTimer) clearInterval(countdownTimer);
             countdownTimer = setInterval(() => {
                 if (!running) return;
                 countdown--;
@@ -644,7 +514,6 @@ function initStocks() {
             }, 1000);
         }
         
-        // 事件监听
         toggleBtn.onclick = () => {
             running = !running;
             toggleBtn.textContent = running ? '运行中' : '已停止';
@@ -674,18 +543,15 @@ function initStocks() {
             countdownDisplay.textContent = countdown;
         };
         
-        // 初始化
         initStocks();
         renderTable();
         startTimers();
-        checkHealth();
         
-        // 延迟执行首次更新
-        setTimeout(() => {
+        setTimeout(async () => {
+            await checkHealth();
             updateAllStocks();
-        }, 2000);
+        }, 1000);
         
-        // 每30秒检查一次健康状态
         setInterval(checkHealth, 30000);
     </script>
 </body>
