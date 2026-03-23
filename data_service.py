@@ -425,14 +425,14 @@ def calculate_all_indicators(df):
 def save_stock_data(code, name, df, indicators):
     """保存股票数据到文件"""
     try:
-        # 保存历史数据
+        # 保存历史数据到gpData（新数据覆盖旧数据）
         if df is not None:
             filename = f"{code}_{name}_历史数据.csv"
             filepath = os.path.join(DATA_DIR, filename)
             df.to_csv(filepath, index=False, encoding='utf-8-sig')
             logger.info(f"历史数据已保存: {filepath}")
         
-        # 保存指标数据
+        # 保存指标数据到gpLSData（新数据覆盖旧数据）
         if indicators:
             indicator_file = os.path.join(LS_DATA_DIR, f"{code}_{name}_indicators.json")
             with open(indicator_file, 'w', encoding='utf-8') as f:
