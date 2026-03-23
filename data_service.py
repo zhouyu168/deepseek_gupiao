@@ -14,6 +14,8 @@ import time
 import json
 import sys
 import urllib3
+import threading
+import random
 
 # 禁用SSL警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -36,8 +38,9 @@ os.makedirs(LS_DATA_DIR, exist_ok=True)
 # 股票名称缓存
 STOCK_NAMES = {}
 
-# 缓存文件路径
-CACHE_FILE = os.path.join(LS_DATA_DIR, "stock_cache.json")
+# 请求控制
+last_request_time = {}
+REQUEST_INTERVAL = 1  # 请求间隔1秒
 
 
 def ensure_directories():
@@ -48,6 +51,17 @@ def ensure_directories():
     if not os.path.exists(LS_DATA_DIR):
         os.makedirs(LS_DATA_DIR)
         logger.info(f"创建本地存储目录: {LS_DATA_DIR}")
+
+
+def rate_limit(code):
+    """请求频率限制"""
+    current_time = time.time()
+    if code in last_request_time:
+        elapsed = current_time - last_request_time[code]
+        if elapsed < REQUEST_INTERVAL:
+            wait_time = REQUEST_INTERVAL - elapsed
+            time.sleep(wait_time)
+    last_request_time[code] = time.time()
 
 
 def load_stock_names():
@@ -136,6 +150,9 @@ def fetch_historical_data_baostock(code):
     try:
         import baostock as bs
         
+        # 频率限制
+        rate_limit(code)
+        
         # 转换代码格式
         if code.startswith('6'):
             full_code = f"sh.{code}"
@@ -212,8 +229,11 @@ def get_realtime_price_akshare(code):
     try:
         import akshare as ak
         
-        # 添加延时，避免高频请求
-        time.sleep(1)
+        # 频率限制
+        rate_limit(code)
+        
+        # 添加随机延时，避免高频请求
+        time.sleep(random.uniform(0.5, 1.5))
         
         # 获取实时行情
         spot_data = ak.stock_zh_a_spot_em()
@@ -239,6 +259,9 @@ def get_realtime_price_sina(code):
     """备用方法：新浪财经获取实时股价"""
     try:
         import requests
+        
+        # 频率限制
+        rate_limit(code)
         
         if code.startswith('6'):
             market = 'sh'
@@ -348,8 +371,8 @@ def calculate_period_averages(df, period_type):
     return 0
 
 
-def calculate_all_indicators(df, current_price):
-    """计算所有指标"""
+def calculate_all_indicators(df):
+    """计算所有历史指标（不包含实时价格）"""
     if df is None or len(df) == 0:
         return None
     
@@ -391,7 +414,8 @@ def calculate_all_indicators(df, current_price):
         'total_avg': round(total_avg, 2),
         'high': round(high_price, 2),
         'low': round(low_price, 2),
-        'data_count': len(df)
+        'data_count': len(df),
+        'last_date': df['date'].max().strftime('%Y-%m-%d')
     }
 
 
@@ -431,21 +455,12 @@ def load_cached_indicators(code):
         return None
 
 
-def save_stock_cache(code, data):
-    """保存股票数据到缓存"""
-    cache_path = os.path.join(LS_DATA_DIR, f"{code}_cache.json")
-    try:
-        with open(cache_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        logger.error(f"保存缓存失败 {code}: {e}")
-
-
 @app.route('/api/stock/history', methods=['GET'])
 def get_stock_history():
-    """获取A股历史数据"""
+    """获取A股历史数据（完整数据）"""
     code = request.args.get('code')
     force_refresh = request.args.get('force', 'false').lower() == 'true'
+    only_price = request.args.get('only_price', 'false').lower() == 'true'
     
     if not code:
         return jsonify({'error': '缺少股票代码'}), 400
@@ -455,37 +470,46 @@ def get_stock_history():
         return jsonify({'error': '仅支持6位数字A股代码'}), 400
     
     try:
-        logger.info(f"获取股票数据: {code}, 强制刷新: {force_refresh}")
+        logger.info(f"获取股票数据: {code}, 强制刷新: {force_refresh}, 仅价格: {only_price}")
+        
+        # 如果只需要实时价格
+        if only_price:
+            current_price = get_realtime_price(code)
+            if current_price is None:
+                return jsonify({'error': '获取实时价格失败'}), 404
+            return jsonify({
+                'code': code,
+                'price': round(current_price, 2)
+            })
         
         # 检查缓存（除非强制刷新）
-        cached_data = None
+        cached_indicators = None
         if not force_refresh:
-            cached_data = load_cached_indicators(code)
+            cached_indicators = load_cached_indicators(code)
         
-        if cached_data and cached_data.get('data_count', 0) > 0:
-            logger.info(f"使用缓存数据: {code}")
+        if cached_indicators and cached_indicators.get('data_count', 0) > 0:
+            logger.info(f"使用缓存历史数据: {code}")
             
             # 获取实时价格
             current_price = get_realtime_price(code)
-            if current_price is None:
-                current_price = cached_data.get('close_price', 0)
             
             name = get_stock_name(code)
             
             result = {
                 'code': code,
                 'name': name,
-                'price': round(current_price, 2),
-                'years': cached_data.get('years', 0),
-                'day_avg': cached_data.get('day_avg', 0),
-                'week_avg': cached_data.get('week_avg', 0),
-                'month_avg': cached_data.get('month_avg', 0),
-                'season_avg': cached_data.get('season_avg', 0),
-                'year_avg': cached_data.get('year_avg', 0),
-                'total_avg': cached_data.get('total_avg', 0),
-                'low': cached_data.get('low', 0),
-                'high': cached_data.get('high', 0),
-                'data_count': cached_data.get('data_count', 0)
+                'price': round(current_price, 2) if current_price else 0,
+                'years': cached_indicators.get('years', 0),
+                'day_avg': cached_indicators.get('day_avg', 0),
+                'week_avg': cached_indicators.get('week_avg', 0),
+                'month_avg': cached_indicators.get('month_avg', 0),
+                'season_avg': cached_indicators.get('season_avg', 0),
+                'year_avg': cached_indicators.get('year_avg', 0),
+                'total_avg': cached_indicators.get('total_avg', 0),
+                'low': cached_indicators.get('low', 0),
+                'high': cached_indicators.get('high', 0),
+                'data_count': cached_indicators.get('data_count', 0),
+                'last_date': cached_indicators.get('last_date', '')
             }
             
             return jsonify(result)
@@ -499,14 +523,14 @@ def get_stock_history():
             logger.error(error_msg)
             return jsonify({'error': error_msg}), 404
         
-        # 获取实时价格
-        current_price = get_realtime_price(code)
-        
-        # 计算各项指标
-        indicators = calculate_all_indicators(df, current_price)
+        # 计算各项指标（不含实时价格）
+        indicators = calculate_all_indicators(df)
         
         if not indicators:
             return jsonify({'error': '数据计算失败'}), 500
+        
+        # 获取实时价格
+        current_price = get_realtime_price(code)
         
         # 获取股票名称
         name = get_stock_name(code)
@@ -527,12 +551,13 @@ def get_stock_history():
             'total_avg': indicators['total_avg'],
             'low': indicators['low'],
             'high': indicators['high'],
-            'data_count': indicators['data_count']
+            'data_count': indicators['data_count'],
+            'last_date': indicators['last_date']
         }
         
         logger.info(f"✅ {code} {name} 计算完成")
-        logger.info(f"  现价={result['price']}, 总均价={result['total_avg']}")
-        logger.info(f"  年限={result['years']}年, 数据量={result['data_count']}")
+        logger.info(f" 现价={result['price']}, 总均价={result['total_avg']}")
+        logger.info(f" 年限={result['years']}年, 数据量={result['data_count']}")
         
         return jsonify(result)
         
@@ -541,10 +566,34 @@ def get_stock_history():
         return jsonify({'error': f'数据获取失败: {str(e)}'}), 500
 
 
+@app.route('/api/stock/price', methods=['GET'])
+def get_stock_price():
+    """仅获取实时股价"""
+    code = request.args.get('code')
+    
+    if not code:
+        return jsonify({'error': '缺少股票代码'}), 400
+    
+    if not code.isdigit() or len(code) != 6:
+        return jsonify({'error': '仅支持6位数字A股代码'}), 400
+    
+    try:
+        current_price = get_realtime_price(code)
+        if current_price is None:
+            return jsonify({'error': '获取实时价格失败'}), 404
+        
+        return jsonify({
+            'code': code,
+            'price': round(current_price, 2)
+        })
+    except Exception as e:
+        logger.error(f"获取实时价格失败 {code}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/health', methods=['GET'])
 def health():
     """健康检查"""
-    # 检查BaoStock可用性
     baostock_available = False
     try:
         import baostock as bs
@@ -555,7 +604,6 @@ def health():
     except:
         pass
     
-    # 检查AKShare可用性
     akshare_available = False
     try:
         import akshare as ak
@@ -572,57 +620,40 @@ def health():
     })
 
 
-@app.route('/api/test/<code>', methods=['GET'])
-def test_stock(code):
-    """测试接口"""
-    try:
-        df = fetch_historical_data_baostock(code, 100)
-        if df is not None:
-            return jsonify({
-                'code': code,
-                'data_count': len(df),
-                'latest_price': float(df['close'].iloc[-1]),
-                'first_price': float(df['close'].iloc[0]),
-                'first_date': df['date'].iloc[0].strftime('%Y-%m-%d'),
-                'last_date': df['date'].iloc[-1].strftime('%Y-%m-%d')
-            })
-        else:
-            return jsonify({'error': '获取失败'}), 404
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
 @app.route('/api/clear_cache/<code>', methods=['POST'])
 def clear_stock_cache(code):
     """清除指定股票的缓存"""
     try:
-        cache_file = os.path.join(LS_DATA_DIR, f"{code}_cache.json")
-        if os.path.exists(cache_file):
-            os.remove(cache_file)
-        
-        indicator_file = os.path.join(LS_DATA_DIR, f"{code}_*_indicators.json")
+        # 清除历史数据文件
         import glob
-        for f in glob.glob(indicator_file):
+        history_files = glob.glob(os.path.join(DATA_DIR, f"{code}_*_历史数据.csv"))
+        for f in history_files:
             if os.path.exists(f):
                 os.remove(f)
+                logger.info(f"删除历史数据文件: {f}")
+        
+        # 清除指标文件
+        indicator_files = glob.glob(os.path.join(LS_DATA_DIR, f"{code}_*_indicators.json"))
+        for f in indicator_files:
+            if os.path.exists(f):
+                os.remove(f)
+                logger.info(f"删除指标文件: {f}")
         
         return jsonify({'message': f'已清除 {code} 的缓存'})
     except Exception as e:
+        logger.error(f"清除缓存失败 {code}: {e}")
         return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
-    # 确保目录存在
     ensure_directories()
-    
-    # 加载股票名称缓存
     load_stock_names()
     
     print("=" * 60)
     print("📊 股票数据服务启动")
     print("=" * 60)
-    print(f"📁 数据存储目录: {DATA_DIR}")
-    print(f"📁 本地存储目录: {LS_DATA_DIR}")
+    print(f"📁 历史数据目录: {DATA_DIR}")
+    print(f"📁 指标数据目录: {LS_DATA_DIR}")
     print("🌐 服务地址: http://localhost:5001")
     print("📈 测试: http://localhost:5001/api/stock/history?code=600519")
     print("💹 健康检查: http://localhost:5001/api/health")

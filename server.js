@@ -25,7 +25,7 @@ const CACHE_FILE = path.join(LS_DATA_DIR, "stocks_cache.json");
 
 // 内存缓存
 let memoryCache = {};
-const CACHE_TIME = 60 * 1000; // 1分钟缓存
+const PRICE_CACHE_TIME = 10 * 1000; // 10秒价格缓存
 
 // 加载持久化缓存
 function loadPersistentCache() {
@@ -36,7 +36,7 @@ function loadPersistentCache() {
             // 过滤过期缓存
             const now = Date.now();
             Object.keys(cached).forEach(key => {
-                if (now - cached[key].time < CACHE_TIME * 24) { // 24小时
+                if (now - cached[key].time < 24 * 60 * 60 * 1000) { // 24小时
                     memoryCache[key] = cached[key];
                 }
             });
@@ -62,8 +62,10 @@ function saveStocksList(stocks) {
     try {
         fs.writeFileSync(stocksFile, JSON.stringify(stocks, null, 2), 'utf-8');
         console.log(`💾 保存了 ${stocks.length} 只股票到本地`);
+        return true;
     } catch (error) {
         console.error("保存股票列表失败:", error);
+        return false;
     }
 }
 
@@ -85,6 +87,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// 获取完整股票数据（历史+实时）
 app.get("/api/stock", async (req, res) => {
     const code = req.query.code;
     const force = req.query.force === 'true';
@@ -93,19 +96,36 @@ app.get("/api/stock", async (req, res) => {
         return res.status(400).json({ error: "缺少股票代码" });
     }
     
-    // 验证A股代码
     if (!/^\d{6}$/.test(code)) {
         return res.status(400).json({ error: "仅支持6位数字A股代码" });
     }
     
-    // 检查内存缓存
-    if (!force && memoryCache[code] && Date.now() - memoryCache[code].time < CACHE_TIME) {
-        console.log(`✅ 缓存命中: ${code}`);
+    // 检查内存缓存（历史数据缓存）
+    if (!force && memoryCache[code] && Date.now() - memoryCache[code].time < 60 * 60 * 1000) {
+        console.log(`✅ 历史数据缓存命中: ${code}`);
+        // 更新实时价格
+        try {
+            const priceResponse = await axios.get(`${PYTHON_SERVICE_URL}/api/stock/price`, {
+                params: { code: code },
+                timeout: 10000
+            });
+            if (priceResponse.data && priceResponse.data.price) {
+                const cachedData = { ...memoryCache[code].data };
+                cachedData.price = priceResponse.data.price;
+                const diff = cachedData.price - cachedData.total_avg;
+                cachedData.diff = diff;
+                cachedData.diff_sign = diff >= 0 ? '+' : '';
+                cachedData.diff_class = diff >= 0 ? 'red' : 'green';
+                return res.json(cachedData);
+            }
+        } catch (error) {
+            console.log(`获取实时价格失败，使用缓存价格: ${code}`);
+        }
         return res.json(memoryCache[code].data);
     }
     
     try {
-        console.log(`📊 获取股票数据: ${code}`);
+        console.log(`📊 获取股票完整数据: ${code}`);
         
         const response = await axios.get(`${PYTHON_SERVICE_URL}/api/stock/history`, {
             params: { code: code, force: force },
@@ -137,8 +157,9 @@ app.get("/api/stock", async (req, res) => {
             high: data.high,
             diff: diff,
             diff_sign: diff >= 0 ? '+' : '',
-            diff_class: diff >= 0 ? 'green' : 'red',
-            data_count: data.data_count
+            diff_class: diff >= 0 ? 'red' : 'green',
+            data_count: data.data_count,
+            last_date: data.last_date
         };
         
         // 存入缓存
@@ -151,8 +172,8 @@ app.get("/api/stock", async (req, res) => {
         savePersistentCache();
         
         console.log(`✅ 成功获取: ${code} - ${data.name}`);
-        console.log(`  现价: ${result.price} | 总均价: ${result.total_avg}`);
-        console.log(`  差价: ${result.diff_sign}${result.diff.toFixed(2)} | 年限: ${result.years}年`);
+        console.log(` 现价: ${result.price} | 总均价: ${result.total_avg}`);
+        console.log(` 差价: ${result.diff_sign}${result.diff.toFixed(2)} | 年限: ${result.years}年`);
         
         res.json(result);
         
@@ -173,6 +194,57 @@ app.get("/api/stock", async (req, res) => {
     }
 });
 
+// 仅获取实时价格
+app.get("/api/stock/price", async (req, res) => {
+    const code = req.query.code;
+    
+    if (!code || !/^\d{6}$/.test(code)) {
+        return res.status(400).json({ error: "无效的股票代码" });
+    }
+    
+    try {
+        const response = await axios.get(`${PYTHON_SERVICE_URL}/api/stock/price`, {
+            params: { code: code },
+            timeout: 10000
+        });
+        
+        res.json(response.data);
+    } catch (error) {
+        console.error(`获取实时价格失败 ${code}:`, error.message);
+        res.status(500).json({ error: "获取实时价格失败", message: error.message });
+    }
+});
+
+// 批量更新实时价格
+app.post("/api/stock/prices", async (req, res) => {
+    const { codes } = req.body;
+    
+    if (!codes || !Array.isArray(codes)) {
+        return res.status(400).json({ error: "无效的股票代码列表" });
+    }
+    
+    const results = {};
+    
+    for (const code of codes) {
+        try {
+            const response = await axios.get(`${PYTHON_SERVICE_URL}/api/stock/price`, {
+                params: { code: code },
+                timeout: 10000
+            });
+            if (response.data && response.data.price) {
+                results[code] = response.data.price;
+            }
+            // 请求间隔
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+            console.error(`获取价格失败 ${code}:`, error.message);
+            results[code] = null;
+        }
+    }
+    
+    res.json({ prices: results });
+});
+
 app.post("/api/stocks", async (req, res) => {
     const { stocks } = req.body;
     
@@ -180,10 +252,17 @@ app.post("/api/stocks", async (req, res) => {
         return res.status(400).json({ error: "无效的股票列表" });
     }
     
-    // 保存股票列表
-    saveStocksList(stocks);
+    // 限制最多300只
+    const limitedStocks = stocks.slice(0, 300);
     
-    res.json({ message: "股票列表已保存", count: stocks.length });
+    // 保存股票列表
+    const success = saveStocksList(limitedStocks);
+    
+    if (success) {
+        res.json({ message: "股票列表已保存", count: limitedStocks.length });
+    } else {
+        res.status(500).json({ error: "保存股票列表失败" });
+    }
 });
 
 app.get("/api/stocks", (req, res) => {
@@ -199,15 +278,24 @@ app.post("/api/stock/clear", (req, res) => {
     res.json({ message: "缓存已清除", count: count });
 });
 
-app.post("/api/stock/clear/:code", (req, res) => {
+app.post("/api/stock/clear/:code", async (req, res) => {
     const code = req.params.code;
-    if (memoryCache[code]) {
-        delete memoryCache[code];
+    
+    try {
+        // 清除内存缓存
+        if (memoryCache[code]) {
+            delete memoryCache[code];
+        }
+        
+        // 调用Python服务清除文件缓存
+        await axios.post(`${PYTHON_SERVICE_URL}/api/clear_cache/${code}`);
+        
         savePersistentCache();
         console.log(`🗑️ 清除了 ${code} 的缓存`);
         res.json({ message: `已清除 ${code} 的缓存` });
-    } else {
-        res.json({ message: `未找到 ${code} 的缓存` });
+    } catch (error) {
+        console.error(`清除缓存失败 ${code}:`, error.message);
+        res.status(500).json({ error: "清除缓存失败" });
     }
 });
 
@@ -248,13 +336,5 @@ app.listen(PORT, () => {
     console.log("📌 支持的股票类型: A股（6位数字代码）");
     console.log("  • 上海: 6开头，如 600519, 600905");
     console.log("  • 深圳: 0/3开头，如 000001, 300750");
-    console.log("=".repeat(60));
-    console.log("📊 计算指标说明:");
-    console.log("  • 日均: 上市至今所有交易日加权均价（成交额/成交量）");
-    console.log("  • 周均: 每周加权均价的平均值");
-    console.log("  • 月均: 每月加权均价的平均值");
-    console.log("  • 季均: 每季加权均价的平均值");
-    console.log("  • 年均: 每年加权均价的平均值");
-    console.log("  • 总均价: 上述5个指标的平均值");
     console.log("=".repeat(60) + "\n");
 });
