@@ -140,7 +140,7 @@ def get_stock_name(code):
         '601318': '中国平安', '600036': '招商银行', '000333': '美的集团',
         '600276': '恒瑞医药', '000568': '泸州老窖', '600887': '伊利股份',
         '601888': '中国中免', '000002': '万科A', '002415': '海康威视',
-        '600030': '中信证券', '000651': '格力电器'
+        '600030': '中信证券', '000651': '格力电器', '601985': '中国核电'
     }
     return default_names.get(code, code)
 
@@ -381,31 +381,35 @@ def calculate_all_indicators(df):
     today = datetime.now()
     years = (today - first_date).days / 365.25
     
-    # 2. 日均价（上市至今所有交易日日均价的平均值）
+    # 2. 最后交易日
+    last_date = df['date'].max().strftime('%Y-%m-%d')
+    
+    # 3. 日均价（上市至今所有交易日日均价的平均值）
     daily_avg_prices = calculate_daily_avg_price(df)
     day_avg = daily_avg_prices.mean()
     
-    # 3. 周均价
+    # 4. 周均价
     week_avg = calculate_period_averages(df, 'week')
     
-    # 4. 月均价
+    # 5. 月均价
     month_avg = calculate_period_averages(df, 'month')
     
-    # 5. 季均价
+    # 6. 季均价
     season_avg = calculate_period_averages(df, 'season')
     
-    # 6. 年均价
+    # 7. 年均价
     year_avg = calculate_period_averages(df, 'year')
     
-    # 7. 总均价（五个指标的平均值）
+    # 8. 总均价（五个指标的平均值）
     total_avg = (day_avg + week_avg + month_avg + season_avg + year_avg) / 5
     
-    # 8. 最高价和最低价
+    # 9. 最高价和最低价
     high_price = df['high'].max()
     low_price = df['low'].min()
     
     return {
         'years': round(years, 1),
+        'last_date': last_date,
         'day_avg': round(day_avg, 2),
         'week_avg': round(week_avg, 2),
         'month_avg': round(month_avg, 2),
@@ -414,8 +418,7 @@ def calculate_all_indicators(df):
         'total_avg': round(total_avg, 2),
         'high': round(high_price, 2),
         'low': round(low_price, 2),
-        'data_count': len(df),
-        'last_date': df['date'].max().strftime('%Y-%m-%d')
+        'data_count': len(df)
     }
 
 
@@ -500,6 +503,7 @@ def get_stock_history():
                 'name': name,
                 'price': round(current_price, 2) if current_price else 0,
                 'years': cached_indicators.get('years', 0),
+                'last_date': cached_indicators.get('last_date', ''),
                 'day_avg': cached_indicators.get('day_avg', 0),
                 'week_avg': cached_indicators.get('week_avg', 0),
                 'month_avg': cached_indicators.get('month_avg', 0),
@@ -508,8 +512,7 @@ def get_stock_history():
                 'total_avg': cached_indicators.get('total_avg', 0),
                 'low': cached_indicators.get('low', 0),
                 'high': cached_indicators.get('high', 0),
-                'data_count': cached_indicators.get('data_count', 0),
-                'last_date': cached_indicators.get('last_date', '')
+                'data_count': cached_indicators.get('data_count', 0)
             }
             
             return jsonify(result)
@@ -543,6 +546,7 @@ def get_stock_history():
             'name': name,
             'price': round(current_price, 2) if current_price else round(df['close'].iloc[-1], 2),
             'years': indicators['years'],
+            'last_date': indicators['last_date'],
             'day_avg': indicators['day_avg'],
             'week_avg': indicators['week_avg'],
             'month_avg': indicators['month_avg'],
@@ -551,13 +555,12 @@ def get_stock_history():
             'total_avg': indicators['total_avg'],
             'low': indicators['low'],
             'high': indicators['high'],
-            'data_count': indicators['data_count'],
-            'last_date': indicators['last_date']
+            'data_count': indicators['data_count']
         }
         
         logger.info(f"✅ {code} {name} 计算完成")
         logger.info(f" 现价={result['price']}, 总均价={result['total_avg']}")
-        logger.info(f" 年限={result['years']}年, 数据量={result['data_count']}")
+        logger.info(f" 年限={result['years']}年, 最后交易={result['last_date']}, 数据量={result['data_count']}")
         
         return jsonify(result)
         
