@@ -27,20 +27,16 @@ const STOCKS_LIST_FILE = path.join(LS_DATA_DIR, "stocks_list.json");
 // 内存缓存
 let memoryCache = {};
 
-// 请求频率限制
-let lastRefreshTime = {};
-const MIN_REFRESH_INTERVAL = 5000; // 5秒最小刷新间隔
-
 // 加载持久化缓存
 function loadPersistentCache() {
     try {
         if (fs.existsSync(CACHE_FILE)) {
             const data = fs.readFileSync(CACHE_FILE, 'utf-8');
             const cached = JSON.parse(data);
-            // 过滤过期缓存
+            // 过滤过期缓存（24小时）
             const now = Date.now();
             Object.keys(cached).forEach(key => {
-                if (now - cached[key].time < 24 * 60 * 60 * 1000) { // 24小时
+                if (now - cached[key].time < 24 * 60 * 60 * 1000) {
                     memoryCache[key] = cached[key];
                 }
             });
@@ -93,17 +89,6 @@ function loadStocksList() {
         console.error("加载股票列表失败:", error);
     }
     return null;
-}
-
-// 检查刷新频率限制
-function checkRateLimit(code) {
-    const now = Date.now();
-    if (lastRefreshTime[code] && (now - lastRefreshTime[code]) < MIN_REFRESH_INTERVAL) {
-        const waitTime = Math.ceil((MIN_REFRESH_INTERVAL - (now - lastRefreshTime[code])) / 1000);
-        return { allowed: false, waitTime };
-    }
-    lastRefreshTime[code] = now;
-    return { allowed: true };
 }
 
 app.get('/', (req, res) => {
@@ -215,15 +200,6 @@ app.post("/api/stock/single_update", async (req, res) => {
     
     if (!code || !/^\d{6}$/.test(code)) {
         return res.status(400).json({ error: "无效的股票代码" });
-    }
-    
-    // 检查频率限制
-    const rateCheck = checkRateLimit(code);
-    if (!rateCheck.allowed) {
-        return res.status(429).json({ 
-            error: `刷新过于频繁，请${rateCheck.waitTime}秒后再试`,
-            waitTime: rateCheck.waitTime
-        });
     }
     
     try {

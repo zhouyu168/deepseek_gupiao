@@ -294,7 +294,7 @@
             cursor: pointer;
         }
         input[type="text"].stock-code-input {
-            width: 80px;
+            width: 85px;
             font-size: 14px;
             font-weight: 500;
             text-align: center;
@@ -331,6 +331,15 @@
         .code-input-wrapper input.enabled {
             background: white;
             border-color: #007bff;
+        }
+        .delete-btn {
+            background: #dc3545;
+            padding: 4px 12px;
+            font-size: 12px;
+        }
+        .delete-btn:disabled {
+            background: #6c757d;
+            cursor: wait;
         }
     </style>
 </head>
@@ -440,7 +449,6 @@
         let isPriceUpdating = false;
         let isHistoryUpdating = false;
         let isInitialLoad = true;
-        let lastRefreshTime = 0;
         let isClearingCache = false;
         
         const tableBody = document.getElementById('tableBody');
@@ -579,6 +587,15 @@
             return '';
         }
         
+        // 更新单行数据的删除按钮状态
+        function setDeleteButtonState(row, disabled) {
+            if (!row) return;
+            const deleteBtn = row.cells[row.cells.length - 1]?.querySelector('.delete-btn');
+            if (deleteBtn) {
+                deleteBtn.disabled = disabled;
+            }
+        }
+        
         // 单只股票历史数据刷新
         async function singleStockUpdate(index) {
             const stock = stocks[index];
@@ -589,6 +606,9 @@
             
             const row = tableBody.children[index];
             if (!row) return;
+            
+            // 禁用删除按钮
+            setDeleteButtonState(row, true);
             
             // 获取刷新按钮并显示加载状态
             const refreshBtn = row.cells[1].querySelector('.single-refresh');
@@ -615,18 +635,7 @@
                 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    if (response.status === 429) {
-                        showError(`刷新过于频繁，请${errorData.waitTime}秒后再试`);
-                    } else {
-                        throw new Error(errorData.message || '更新失败');
-                    }
-                    // 恢复显示
-                    for (let j = 4; j <= 15; j++) {
-                        if (row.cells[j]) {
-                            row.cells[j].textContent = '-';
-                        }
-                    }
-                    return;
+                    throw new Error(errorData.message || '更新失败');
                 }
                 
                 const data = await response.json();
@@ -667,6 +676,8 @@
                     refreshBtn.classList.remove('refreshing');
                     refreshBtn.textContent = '↻';
                 }
+                // 启用删除按钮
+                setDeleteButtonState(row, false);
                 updateStatus.textContent = '';
             }
         }
@@ -693,6 +704,7 @@
                 codeInput.className = 'stock-code-input';
                 codeInput.disabled = true; // 默认禁用
                 
+                // 双击启用输入
                 codeInput.addEventListener('dblclick', (e) => {
                     e.stopPropagation();
                     if (codeInput.disabled) {
@@ -702,15 +714,31 @@
                     }
                 });
                 
+                // 失去焦点处理
                 codeInput.addEventListener('blur', async (e) => {
                     if (!codeInput.disabled) {
                         const newCode = e.target.value.trim();
                         if (newCode && /^\d{6}$/.test(newCode) && newCode !== stock.code) {
+                            // 禁用当前行的删除按钮
+                            setDeleteButtonState(row, true);
+                            
                             stocks[index].code = newCode;
                             stocks[index].data = null;
                             stocks[index].name = '';
+                            
+                            // 更新代码显示
+                            codeInput.value = newCode;
+                            
+                            // 重新渲染表格以更新市场标识等
                             renderTable();
-                            await singleStockUpdate(index);
+                            
+                            // 等待DOM更新后获取新行索引
+                            setTimeout(async () => {
+                                const newIndex = stocks.findIndex(s => s.code === newCode);
+                                if (newIndex !== -1) {
+                                    await singleStockUpdate(newIndex);
+                                }
+                            }, 100);
                         } else if (newCode && !/^\d{6}$/.test(newCode)) {
                             showError('请输入6位数字股票代码');
                             codeInput.value = stock.code;
@@ -765,10 +793,12 @@
                 const actionCell = document.createElement('td');
                 const deleteBtn = document.createElement('button');
                 deleteBtn.textContent = '删除';
+                deleteBtn.className = 'delete-btn';
                 deleteBtn.style.background = '#dc3545';
                 deleteBtn.style.padding = '4px 12px';
                 deleteBtn.style.fontSize = '12px';
                 deleteBtn.onclick = () => {
+                    if (deleteBtn.disabled) return;
                     if (confirm(`确定要删除股票 ${stock.code} ${stock.name} 吗？`)) {
                         stocks.splice(index, 1);
                         renderTable();
@@ -856,17 +886,13 @@
                 return;
             }
             
-            // 检查5秒限制
-            const now = Date.now();
-            if (now - lastRefreshTime < 5000 && !isInitialLoad) {
-                const waitTime = Math.ceil((5000 - (now - lastRefreshTime)) / 1000);
-                showError(`刷新过于频繁，请${waitTime}秒后再试`);
-                return;
-            }
-            lastRefreshTime = now;
-            
             isHistoryUpdating = true;
             updateStatus.textContent = '🔄 正在更新历史数据...';
+            
+            // 禁用所有删除按钮
+            for (let i = 0; i < tableBody.children.length; i++) {
+                setDeleteButtonState(tableBody.children[i], true);
+            }
             
             let successCount = 0;
             let failCount = 0;
@@ -919,6 +945,11 @@
             
             // 保存股票列表
             saveStocksList();
+            
+            // 启用所有删除按钮
+            for (let i = 0; i < tableBody.children.length; i++) {
+                setDeleteButtonState(tableBody.children[i], false);
+            }
             
             isHistoryUpdating = false;
         }
@@ -1096,14 +1127,6 @@
         
         // 事件绑定
         refreshBtn.onclick = async () => {
-            const now = Date.now();
-            if (now - lastRefreshTime < 5000) {
-                const waitTime = Math.ceil((5000 - (now - lastRefreshTime)) / 1000);
-                showError(`刷新过于频繁，请${waitTime}秒后再试`);
-                return;
-            }
-            lastRefreshTime = now;
-            
             // 停止倒计时
             stopTimers();
             

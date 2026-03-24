@@ -455,32 +455,35 @@ def load_cached_indicators(code):
             if filename.startswith(code) and filename.endswith('_indicators.json'):
                 filepath = os.path.join(LS_DATA_DIR, filename)
                 with open(filepath, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-        return None
+                    data = json.load(f)
+                    # 提取股票名称
+                    name = filename.replace(f"{code}_", "").replace("_indicators.json", "")
+                    return data, name
+        return None, None
     except Exception as e:
         logger.error(f"加载缓存指标失败 {code}: {e}")
-        return None
+        return None, None
 
 
 def should_update_history(code):
     """判断是否需要更新历史数据（每天只需更新1次）"""
-    if code not in last_history_update:
-        # 检查文件中的更新时间
-        try:
-            for filename in os.listdir(LS_DATA_DIR):
-                if filename.startswith(code) and filename.endswith('_indicators.json'):
-                    filepath = os.path.join(LS_DATA_DIR, filename)
-                    modify_time = datetime.fromtimestamp(os.path.getmtime(filepath))
-                    if modify_time.date() == datetime.now().date():
-                        last_history_update[code] = modify_time.strftime('%Y-%m-%d')
-                        return False
-        except:
-            pass
-        return True
+    # 检查内存中的记录
+    if code in last_history_update:
+        if last_history_update[code] == datetime.now().strftime('%Y-%m-%d'):
+            return False
     
-    # 检查是否今天已更新
-    if last_history_update[code] == datetime.now().strftime('%Y-%m-%d'):
-        return False
+    # 检查文件中的更新时间
+    try:
+        for filename in os.listdir(LS_DATA_DIR):
+            if filename.startswith(code) and filename.endswith('_indicators.json'):
+                filepath = os.path.join(LS_DATA_DIR, filename)
+                modify_time = datetime.fromtimestamp(os.path.getmtime(filepath))
+                if modify_time.date() == datetime.now().date():
+                    last_history_update[code] = modify_time.strftime('%Y-%m-%d')
+                    return False
+    except:
+        pass
+    
     return True
 
 
@@ -514,9 +517,9 @@ def get_stock_history():
         # 检查是否需要更新历史数据（每天只需1次）
         need_update = force_refresh or should_update_history(code)
         
-        cached_indicators = None
+        cached_indicators, cached_name = None, None
         if not need_update:
-            cached_indicators = load_cached_indicators(code)
+            cached_indicators, cached_name = load_cached_indicators(code)
         
         if cached_indicators and cached_indicators.get('data_count', 0) > 0:
             logger.info(f"使用缓存历史数据: {code}")
@@ -524,7 +527,7 @@ def get_stock_history():
             # 获取实时价格
             current_price = get_realtime_price(code)
             
-            name = get_stock_name(code)
+            name = cached_name or get_stock_name(code)
             
             result = {
                 'code': code,
