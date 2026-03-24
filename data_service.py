@@ -41,6 +41,7 @@ STOCK_NAMES = {}
 # 请求控制
 last_request_time = {}
 REQUEST_INTERVAL = 1  # 请求间隔1秒
+last_history_update = {}  # 记录每只股票最后历史数据更新时间
 
 
 def ensure_directories():
@@ -439,6 +440,9 @@ def save_stock_data(code, name, df, indicators):
                 json.dump(indicators, f, ensure_ascii=False, indent=2)
             logger.info(f"指标数据已保存: {indicator_file}")
             
+            # 记录更新时间
+            last_history_update[code] = datetime.now().strftime('%Y-%m-%d')
+            
     except Exception as e:
         logger.error(f"保存数据失败 {code}: {e}")
 
@@ -456,6 +460,28 @@ def load_cached_indicators(code):
     except Exception as e:
         logger.error(f"加载缓存指标失败 {code}: {e}")
         return None
+
+
+def should_update_history(code):
+    """判断是否需要更新历史数据（每天只需更新1次）"""
+    if code not in last_history_update:
+        # 检查文件中的更新时间
+        try:
+            for filename in os.listdir(LS_DATA_DIR):
+                if filename.startswith(code) and filename.endswith('_indicators.json'):
+                    filepath = os.path.join(LS_DATA_DIR, filename)
+                    modify_time = datetime.fromtimestamp(os.path.getmtime(filepath))
+                    if modify_time.date() == datetime.now().date():
+                        last_history_update[code] = modify_time.strftime('%Y-%m-%d')
+                        return False
+        except:
+            pass
+        return True
+    
+    # 检查是否今天已更新
+    if last_history_update[code] == datetime.now().strftime('%Y-%m-%d'):
+        return False
+    return True
 
 
 @app.route('/api/stock/history', methods=['GET'])
@@ -485,9 +511,11 @@ def get_stock_history():
                 'price': round(current_price, 2)
             })
         
-        # 检查缓存（除非强制刷新）
+        # 检查是否需要更新历史数据（每天只需1次）
+        need_update = force_refresh or should_update_history(code)
+        
         cached_indicators = None
-        if not force_refresh:
+        if not need_update:
             cached_indicators = load_cached_indicators(code)
         
         if cached_indicators and cached_indicators.get('data_count', 0) > 0:
@@ -501,7 +529,7 @@ def get_stock_history():
             result = {
                 'code': code,
                 'name': name,
-                'price': round(current_price, 2) if current_price else 0,
+                'price': round(current_price, 2) if current_price else None,
                 'years': cached_indicators.get('years', 0),
                 'last_date': cached_indicators.get('last_date', ''),
                 'day_avg': cached_indicators.get('day_avg', 0),
@@ -544,7 +572,7 @@ def get_stock_history():
         result = {
             'code': code,
             'name': name,
-            'price': round(current_price, 2) if current_price else round(df['close'].iloc[-1], 2),
+            'price': round(current_price, 2) if current_price else None,
             'years': indicators['years'],
             'last_date': indicators['last_date'],
             'day_avg': indicators['day_avg'],
@@ -592,6 +620,65 @@ def get_stock_price():
     except Exception as e:
         logger.error(f"获取实时价格失败 {code}: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/stock/single_update', methods=['POST'])
+def single_stock_update():
+    """单只股票历史数据更新"""
+    data = request.get_json()
+    code = data.get('code')
+    
+    if not code:
+        return jsonify({'error': '缺少股票代码'}), 400
+    
+    try:
+        logger.info(f"单只股票历史数据更新: {code}")
+        
+        # 强制刷新获取历史数据
+        df = fetch_historical_data_baostock(code)
+        
+        if df is None or len(df) < 30:
+            return jsonify({'error': f'无法获取足够的历史数据'}), 404
+        
+        # 计算各项指标
+        indicators = calculate_all_indicators(df)
+        
+        if not indicators:
+            return jsonify({'error': '数据计算失败'}), 500
+        
+        # 获取实时价格
+        current_price = get_realtime_price(code)
+        
+        # 获取股票名称
+        name = get_stock_name(code)
+        
+        # 保存数据
+        save_stock_data(code, name, df, indicators)
+        
+        result = {
+            'code': code,
+            'name': name,
+            'price': round(current_price, 2) if current_price else None,
+            'years': indicators['years'],
+            'last_date': indicators['last_date'],
+            'day_avg': indicators['day_avg'],
+            'week_avg': indicators['week_avg'],
+            'month_avg': indicators['month_avg'],
+            'season_avg': indicators['season_avg'],
+            'year_avg': indicators['year_avg'],
+            'total_avg': indicators['total_avg'],
+            'low': indicators['low'],
+            'high': indicators['high'],
+            'data_count': indicators['data_count']
+        }
+        
+        logger.info(f"✅ 单只更新完成: {code} {name}")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"单只股票更新失败 {code}: {str(e)}")
+        return jsonify({'error': f'更新失败: {str(e)}'}), 500
 
 
 @app.route('/api/health', methods=['GET'])
@@ -642,6 +729,10 @@ def clear_stock_cache(code):
                 os.remove(f)
                 logger.info(f"删除指标文件: {f}")
         
+        # 清除更新时间记录
+        if code in last_history_update:
+            del last_history_update[code]
+        
         return jsonify({'message': f'已清除 {code} 的缓存'})
     except Exception as e:
         logger.error(f"清除缓存失败 {code}: {e}")
@@ -664,6 +755,7 @@ if __name__ == '__main__':
     print("✅ 数据源: BaoStock (历史数据) + AKShare (实时股价)")
     print("✅ 计算指标: 日均、周均、月均、季均、年均、总均价")
     print("✅ 算法: 基于成交额/成交量的加权均价")
+    print("✅ 历史数据: 每天自动更新1次")
     print("=" * 60)
     
     app.run(host='0.0.0.0', port=5001, debug=False, threaded=True)

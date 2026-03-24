@@ -1,13 +1,13 @@
 {
   "years": 4.6,
-  "last_date": "2026-03-20",
+  "last_date": "2026-03-23",
   "day_avg": 5.7,
-  "week_avg": 5.7,
+  "week_avg": 5.71,
   "month_avg": 5.68,
   "season_avg": 5.67,
   "year_avg": 5.59,
   "total_avg": 5.67,
   "high": 8.61,
   "low": 3.65,
-  "data_count": 1107
+  "data_count": 1108
 }

@@ -121,11 +121,20 @@
             cursor: not-allowed;
             opacity: 0.6;
         }
-        button.running { background: #28a745; }
-        button.running:disabled { background: #6c757d; }
-        button.stopped { background: #dc3545; }
         button.danger { background: #dc3545; }
         button.warning { background: #ffc107; color: #333; }
+        .refresh-btn-small {
+            background: #28a745;
+            padding: 4px 8px;
+            font-size: 12px;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            line-height: 1;
+        }
+        .refresh-btn-small:hover:not(:disabled) {
+            background: #218838;
+        }
         input[type="number"], input[type="text"] {
             width: 70px;
             padding: 5px;
@@ -172,7 +181,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 14px; /* 字体调大 */
+            font-size: 14px;
         }
         th {
             background: #f8f9fa;
@@ -185,13 +194,13 @@
             top: 0;
             z-index: 10;
             white-space: nowrap;
-            font-size: 14px; /* 字体调大 */
+            font-size: 14px;
         }
         td {
             padding: 8px 8px;
             text-align: center;
             border-bottom: 1px solid #dee2e6;
-            font-size: 14px; /* 字体调大 */
+            font-size: 14px;
         }
         tr:hover { background: #f8f9fa; }
         .price-red { background: #ffebee; color: #c62828; font-weight: bold; }
@@ -203,6 +212,20 @@
         .error-message {
             background: #ffebee;
             color: #c62828;
+            padding: 10px 20px;
+            margin: 10px 30px;
+            border-radius: 6px;
+            display: none;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .success-message {
+            background: #e8f5e9;
+            color: #2e7d32;
             padding: 10px 20px;
             margin: 10px 30px;
             border-radius: 6px;
@@ -237,43 +260,9 @@
         .status-sh { background: #ff9800; color: white; }
         .status-sz { background: #4caf50; color: white; }
         .tooltip { cursor: help; border-bottom: 1px dotted #999; }
-        .success-message {
-            background: #e8f5e9;
-            color: #2e7d32;
-            padding: 10px 20px;
-            margin: 10px 30px;
-            border-radius: 6px;
-            display: none;
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-            max-width: 400px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
         .last-update {
             font-size: 11px;
             color: #6c757d;
-        }
-        .lock-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 999;
-            display: none;
-            justify-content: center;
-            align-items: center;
-        }
-        .lock-message {
-            background: white;
-            padding: 20px 40px;
-            border-radius: 12px;
-            font-size: 18px;
-            font-weight: bold;
-            color: #007bff;
         }
         .modal {
             display: none;
@@ -304,12 +293,44 @@
             font-size: 40px;
             cursor: pointer;
         }
-        /* 股票代码输入框字体调大 */
         input[type="text"].stock-code-input {
             width: 80px;
             font-size: 14px;
             font-weight: 500;
             text-align: center;
+        }
+        .single-refresh {
+            cursor: pointer;
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            line-height: 22px;
+            text-align: center;
+            background: #28a745;
+            color: white;
+            border-radius: 50%;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+        .single-refresh:hover:not(.refreshing) {
+            background: #218838;
+            transform: rotate(180deg);
+        }
+        .single-refresh.refreshing {
+            background: #6c757d;
+            cursor: wait;
+            animation: spin 0.6s linear infinite;
+        }
+        .code-input-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        .code-input-wrapper input {
+            background: #e9ecef;
+        }
+        .code-input-wrapper input.enabled {
+            background: white;
+            border-color: #007bff;
         }
     </style>
 </head>
@@ -343,9 +364,6 @@
         
         <div class="control-panel">
             <div class="control-group">
-                <button id="toggleBtn" class="running">运行中</button>
-            </div>
-            <div class="control-group">
                 <label>现价更新(秒):</label>
                 <input id="priceIntervalInput" type="number" value="10" min="5" max="180">
             </div>
@@ -361,7 +379,7 @@
                 <label>历史更新:</label>
                 <span id="historyCountdown" class="countdown">60:00</span>
             </div>
-            <button id="refreshBtn">🔄 立即刷新</button>
+            <button id="refreshBtn">🔄 立即刷新全部</button>
             <button id="addRowBtn">➕ 添加股票</button>
             <button id="clearCacheBtn" class="danger">🗑️ 清除缓存</button>
             <button id="saveStocksBtn" class="warning">💾 保存列表</button>
@@ -381,6 +399,7 @@
                 <thead>
                     <tr>
                         <th>代码</th>
+                        <th>单刷</th>
                         <th>名称</th>
                         <th>市场</th>
                         <th>年限<br>(年)</th>
@@ -399,14 +418,10 @@
                     </tr>
                 </thead>
                 <tbody id="tableBody">
-                    <tr><td colspan="16" style="text-align: center; padding: 40px;"><div class="loading"></div> 加载中...</td></tr>
+                    <tr><td colspan="17" style="text-align: center; padding: 40px;"><div class="loading"></div> 加载中...</td></tr>
                 </tbody>
             </table>
         </div>
-    </div>
-    
-    <div id="lockOverlay" class="lock-overlay">
-        <div class="lock-message">⏳ 数据更新中，请稍候...</div>
     </div>
     
     <div id="imageModal" class="modal" onclick="closeImageModal()">
@@ -417,7 +432,6 @@
     </div>
 
     <script>
-        let running = true;
         let priceCountdown = 10;
         let historyCountdownSeconds = 3600; // 60分钟转换为秒
         let stocks = [];
@@ -430,7 +444,6 @@
         let isClearingCache = false;
         
         const tableBody = document.getElementById('tableBody');
-        const toggleBtn = document.getElementById('toggleBtn');
         const priceIntervalInput = document.getElementById('priceIntervalInput');
         const historyIntervalInput = document.getElementById('historyIntervalInput');
         const priceCountdownDisplay = document.getElementById('priceCountdown');
@@ -444,7 +457,6 @@
         const stockCount = document.getElementById('stockCount');
         const updateStatus = document.getElementById('updateStatus');
         const lastUpdateTime = document.getElementById('lastUpdateTime');
-        const lockOverlay = document.getElementById('lockOverlay');
         
         // 显示提示
         function showError(message) {
@@ -461,18 +473,6 @@
             setTimeout(() => {
                 successMessage.style.display = 'none';
             }, 3000);
-        }
-        
-        function showDisabledMessage() {
-            showError('⛔ 当前操作不可用，请先停止运行');
-        }
-        
-        function lockPage() {
-            lockOverlay.style.display = 'flex';
-        }
-        
-        function unlockPage() {
-            lockOverlay.style.display = 'none';
         }
         
         // 显示图片模态框
@@ -494,7 +494,7 @@
             return `${minutes}:${secs.toString().padStart(2, '0')}`;
         }
         
-        // 加载股票列表（修复bug：确保从服务器加载最新保存的列表）
+        // 加载股票列表
         async function initStocks() {
             try {
                 const response = await fetch('/api/stocks');
@@ -531,7 +531,7 @@
             updateStockCount();
         }
         
-        // 保存股票列表（修复bug：确保保存成功）
+        // 保存股票列表
         function saveStocksList() {
             const stocksToSave = stocks.map(s => ({ code: s.code, name: s.name }));
             fetch('/api/stocks', {
@@ -542,14 +542,11 @@
              .then(data => {
                 if (data.message) {
                     console.log('股票列表已保存:', data.message);
-                    showSuccess('股票列表已保存成功！');
                 } else {
                     console.error('保存股票列表失败:', data);
-                    showError('保存股票列表失败');
                 }
              }).catch(err => {
                 console.error('保存股票列表失败:', err);
-                showError('保存股票列表失败');
              });
         }
         
@@ -582,6 +579,98 @@
             return '';
         }
         
+        // 单只股票历史数据刷新
+        async function singleStockUpdate(index) {
+            const stock = stocks[index];
+            if (!stock.code || stock.code.length !== 6) {
+                showError('请先输入正确的股票代码');
+                return;
+            }
+            
+            const row = tableBody.children[index];
+            if (!row) return;
+            
+            // 获取刷新按钮并显示加载状态
+            const refreshBtn = row.cells[1].querySelector('.single-refresh');
+            if (refreshBtn) {
+                refreshBtn.classList.add('refreshing');
+                refreshBtn.textContent = '⟳';
+            }
+            
+            // 显示加载状态
+            for (let j = 4; j <= 15; j++) {
+                if (row.cells[j]) {
+                    row.cells[j].innerHTML = '<div class="loading"></div>';
+                }
+            }
+            
+            try {
+                updateStatus.textContent = `🔄 正在更新 ${stock.code} 历史数据...`;
+                
+                const response = await fetch('/api/stock/single_update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: stock.code })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    if (response.status === 429) {
+                        showError(`刷新过于频繁，请${errorData.waitTime}秒后再试`);
+                    } else {
+                        throw new Error(errorData.message || '更新失败');
+                    }
+                    // 恢复显示
+                    for (let j = 4; j <= 15; j++) {
+                        if (row.cells[j]) {
+                            row.cells[j].textContent = '-';
+                        }
+                    }
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // 更新数据
+                stocks[index].data = data;
+                stocks[index].name = data.name;
+                updateRowData(row, data);
+                
+                // 保存列表
+                saveStocksList();
+                
+                updateStatus.textContent = `✅ ${stock.code} 历史数据更新完成`;
+                showSuccess(`${stock.code} ${data.name} 历史数据更新成功`);
+                
+                setTimeout(() => {
+                    if (updateStatus.textContent.includes('更新完成')) {
+                        updateStatus.textContent = '';
+                    }
+                }, 2000);
+                
+            } catch (error) {
+                console.error(`单只股票更新失败 ${stock.code}:`, error);
+                showError(`${stock.code}: ${error.message}`);
+                
+                // 恢复显示
+                for (let j = 4; j <= 15; j++) {
+                    if (row.cells[j]) {
+                        row.cells[j].textContent = '-';
+                    }
+                }
+            } finally {
+                if (refreshBtn) {
+                    refreshBtn.classList.remove('refreshing');
+                    refreshBtn.textContent = '↻';
+                }
+                updateStatus.textContent = '';
+            }
+        }
+        
         function renderTable() {
             if (!tableBody) return;
             tableBody.innerHTML = '';
@@ -591,6 +680,8 @@
                 
                 // 代码列
                 const codeCell = document.createElement('td');
+                const wrapper = document.createElement('div');
+                wrapper.className = 'code-input-wrapper';
                 const codeInput = document.createElement('input');
                 codeInput.type = 'text';
                 codeInput.value = stock.code;
@@ -600,23 +691,54 @@
                 codeInput.style.fontWeight = '500';
                 codeInput.style.textAlign = 'center';
                 codeInput.className = 'stock-code-input';
-                codeInput.disabled = running;
-                codeInput.addEventListener('change', (e) => {
-                    const newCode = e.target.value.trim();
-                    if (newCode && /^\d{6}$/.test(newCode)) {
-                        stocks[index].code = newCode;
-                        stocks[index].data = null;
-                        renderTable();
-                        if (!running) {
-                            updateAllStocks();
-                        }
-                    } else if (newCode) {
-                        showError('请输入6位数字股票代码');
-                        codeInput.value = stock.code;
+                codeInput.disabled = true; // 默认禁用
+                
+                codeInput.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    if (codeInput.disabled) {
+                        codeInput.disabled = false;
+                        codeInput.classList.add('enabled');
+                        codeInput.focus();
                     }
                 });
-                codeCell.appendChild(codeInput);
+                
+                codeInput.addEventListener('blur', async (e) => {
+                    if (!codeInput.disabled) {
+                        const newCode = e.target.value.trim();
+                        if (newCode && /^\d{6}$/.test(newCode) && newCode !== stock.code) {
+                            stocks[index].code = newCode;
+                            stocks[index].data = null;
+                            stocks[index].name = '';
+                            renderTable();
+                            await singleStockUpdate(index);
+                        } else if (newCode && !/^\d{6}$/.test(newCode)) {
+                            showError('请输入6位数字股票代码');
+                            codeInput.value = stock.code;
+                        }
+                        codeInput.disabled = true;
+                        codeInput.classList.remove('enabled');
+                    }
+                });
+                
+                codeInput.addEventListener('keypress', async (e) => {
+                    if (e.key === 'Enter') {
+                        codeInput.blur();
+                    }
+                });
+                
+                wrapper.appendChild(codeInput);
+                codeCell.appendChild(wrapper);
                 row.appendChild(codeCell);
+                
+                // 单刷按钮列
+                const refreshCell = document.createElement('td');
+                const refreshBtn = document.createElement('div');
+                refreshBtn.className = 'single-refresh';
+                refreshBtn.textContent = '↻';
+                refreshBtn.title = '刷新历史数据';
+                refreshBtn.onclick = () => singleStockUpdate(index);
+                refreshCell.appendChild(refreshBtn);
+                row.appendChild(refreshCell);
                 
                 // 名称列
                 const nameCell = document.createElement('td');
@@ -646,7 +768,6 @@
                 deleteBtn.style.background = '#dc3545';
                 deleteBtn.style.padding = '4px 12px';
                 deleteBtn.style.fontSize = '12px';
-                deleteBtn.disabled = running;
                 deleteBtn.onclick = () => {
                     if (confirm(`确定要删除股票 ${stock.code} ${stock.name} 吗？`)) {
                         stocks.splice(index, 1);
@@ -668,29 +789,29 @@
         function updateRowData(row, data) {
             if (!row || !data) return;
             const cells = row.cells;
-            if (cells.length < 16) return;
+            if (cells.length < 17) return;
             
-            cells[1].textContent = data.name || data.code;
-            cells[3].textContent = data.years ? data.years.toFixed(1) + '年' : '-';
+            cells[2].textContent = data.name || data.code;
+            cells[4].textContent = data.years ? data.years.toFixed(1) + '年' : '-';
             
-            // 最后交易日列（修复bug：确保显示最后交易日）
-            const lastDateCell = cells[4];
+            // 最后交易日列
+            const lastDateCell = cells[5];
             lastDateCell.textContent = data.last_date || '-';
             lastDateCell.className = getLastDateClass(data.last_date);
             
-            cells[5].textContent = data.day_avg ? data.day_avg.toFixed(2) : '-';
-            cells[6].textContent = data.week_avg ? data.week_avg.toFixed(2) : '-';
-            cells[7].textContent = data.month_avg ? data.month_avg.toFixed(2) : '-';
-            cells[8].textContent = data.season_avg ? data.season_avg.toFixed(2) : '-';
-            cells[9].textContent = data.year_avg ? data.year_avg.toFixed(2) : '-';
-            cells[10].textContent = data.low ? data.low.toFixed(2) : '-';
-            cells[11].textContent = data.high ? data.high.toFixed(2) : '-';
-            cells[12].textContent = data.total_avg ? data.total_avg.toFixed(2) : '-';
+            cells[6].textContent = data.day_avg ? data.day_avg.toFixed(2) : '-';
+            cells[7].textContent = data.week_avg ? data.week_avg.toFixed(2) : '-';
+            cells[8].textContent = data.month_avg ? data.month_avg.toFixed(2) : '-';
+            cells[9].textContent = data.season_avg ? data.season_avg.toFixed(2) : '-';
+            cells[10].textContent = data.year_avg ? data.year_avg.toFixed(2) : '-';
+            cells[11].textContent = data.low ? data.low.toFixed(2) : '-';
+            cells[12].textContent = data.high ? data.high.toFixed(2) : '-';
+            cells[13].textContent = data.total_avg ? data.total_avg.toFixed(2) : '-';
             
             // 现价背景色：大于总均价为红色，小于为绿色
-            const priceCell = cells[13];
-            priceCell.textContent = data.price ? data.price.toFixed(2) : '-';
-            if (data.price && data.total_avg) {
+            const priceCell = cells[14];
+            priceCell.textContent = data.price !== null && data.price !== undefined ? data.price.toFixed(2) : '-';
+            if (data.price !== null && data.total_avg) {
                 if (data.price > data.total_avg) {
                     priceCell.className = 'price-red';
                 } else if (data.price < data.total_avg) {
@@ -701,8 +822,8 @@
             }
             
             // 差价背景色：正为红色，负为绿色
-            if (data.diff !== undefined) {
-                const diffCell = cells[14];
+            if (data.diff !== null && data.diff !== undefined) {
+                const diffCell = cells[15];
                 diffCell.textContent = `${data.diff_sign}${data.diff.toFixed(2)}`;
                 if (data.diff > 0) {
                     diffCell.className = 'diff-red';
@@ -735,8 +856,16 @@
                 return;
             }
             
+            // 检查5秒限制
+            const now = Date.now();
+            if (now - lastRefreshTime < 5000 && !isInitialLoad) {
+                const waitTime = Math.ceil((5000 - (now - lastRefreshTime)) / 1000);
+                showError(`刷新过于频繁，请${waitTime}秒后再试`);
+                return;
+            }
+            lastRefreshTime = now;
+            
             isHistoryUpdating = true;
-            lockPage();
             updateStatus.textContent = '🔄 正在更新历史数据...';
             
             let successCount = 0;
@@ -751,7 +880,7 @@
                 
                 try {
                     // 显示加载状态
-                    for (let j = 3; j <= 14; j++) {
+                    for (let j = 4; j <= 15; j++) {
                         if (row.cells[j]) {
                             row.cells[j].innerHTML = '<div class="loading"></div>';
                         }
@@ -767,7 +896,7 @@
                     }
                 } catch (error) {
                     failCount++;
-                    for (let j = 3; j <= 14; j++) {
+                    for (let j = 4; j <= 15; j++) {
                         if (row.cells[j]) {
                             row.cells[j].textContent = '错误';
                         }
@@ -792,7 +921,6 @@
             saveStocksList();
             
             isHistoryUpdating = false;
-            unlockPage();
         }
         
         // 仅更新现价
@@ -820,7 +948,7 @@
                     const response = await fetch(`/api/stock/price?code=${stock.code}`);
                     const data = await response.json();
                     
-                    if (data && data.price) {
+                    if (data && data.price !== undefined) {
                         const newPrice = data.price;
                         stock.data.price = newPrice;
                         const diff = newPrice - stock.data.total_avg;
@@ -830,11 +958,18 @@
                         updateRowData(row, stock.data);
                         successCount++;
                     } else {
+                        // 实时价格获取失败，现价空缺
+                        const priceCell = row.cells[14];
+                        priceCell.textContent = '-';
+                        priceCell.className = '';
                         failCount++;
                     }
                 } catch (error) {
                     failCount++;
                     console.error(`更新现价失败 ${stock.code}:`, error);
+                    const priceCell = row.cells[14];
+                    priceCell.textContent = '-';
+                    priceCell.className = '';
                 }
                 
                 await new Promise(resolve => setTimeout(resolve, 500));
@@ -874,7 +1009,6 @@
             clearCacheBtn.disabled = true;
             saveStocksBtn.disabled = true;
             
-            lockPage();
             updateStatus.textContent = '🗑️ 正在清除缓存...';
             
             try {
@@ -896,43 +1030,15 @@
             }
             
             updateStatus.textContent = '';
-            unlockPage();
             isClearingCache = false;
             
             // 重启倒计时
-            if (running) {
-                startTimers();
-            }
+            startTimers();
             
             // 恢复按钮状态
-            updateButtonStates();
-        }
-        
-        // 更新按钮状态
-        function updateButtonStates() {
-            const priceInterval = parseInt(priceIntervalInput.value);
-            const historyInterval = parseInt(historyIntervalInput.value);
-            
-            // 运行中/停止按钮
-            toggleBtn.disabled = false;
-            
-            // 间隔输入框：运行中时禁用，停止时启用
-            priceIntervalInput.disabled = running;
-            historyIntervalInput.disabled = running;
-            
-            // 添加股票按钮：运行中时禁用，停止时启用
-            addRowBtn.disabled = running;
-            
-            // 清除缓存按钮：无历史数据更新时启用
-            clearCacheBtn.disabled = isHistoryUpdating || isClearingCache;
-            
-            // 保存列表按钮：清除缓存时禁用
-            saveStocksBtn.disabled = isClearingCache;
-            
-            // 立即刷新按钮：停止时禁用，运行中且无历史更新时启用
-            const now = Date.now();
-            const canRefresh = running && !isHistoryUpdating && (now - lastRefreshTime >= 5000);
-            refreshBtn.disabled = !canRefresh;
+            refreshBtn.disabled = false;
+            clearCacheBtn.disabled = false;
+            saveStocksBtn.disabled = false;
         }
         
         // 停止所有倒计时
@@ -949,12 +1055,10 @@
         
         // 启动倒计时
         function startTimers() {
-            if (!running) return;
-            
             // 现价倒计时
             if (priceTimer) clearInterval(priceTimer);
             priceTimer = setInterval(() => {
-                if (!running || isPriceUpdating || isHistoryUpdating) return;
+                if (isPriceUpdating || isHistoryUpdating) return;
                 
                 priceCountdown--;
                 priceCountdownDisplay.textContent = priceCountdown;
@@ -965,10 +1069,10 @@
                 }
             }, 1000);
             
-            // 历史倒计时（每秒更新显示）
+            // 历史倒计时
             if (historyTimer) clearInterval(historyTimer);
             historyTimer = setInterval(() => {
-                if (!running || isHistoryUpdating) return;
+                if (isHistoryUpdating) return;
                 
                 if (historyCountdownSeconds > 0) {
                     historyCountdownSeconds--;
@@ -991,68 +1095,28 @@
         }
         
         // 事件绑定
-        toggleBtn.onclick = async () => {
-            if (isHistoryUpdating) {
-                showError('数据更新中，请稍后再试');
-                return;
-            }
-            
-            running = !running;
-            toggleBtn.textContent = running ? '运行中' : '已停止';
-            toggleBtn.className = running ? 'running' : 'stopped';
-            
-            if (running) {
-                // 从停止切换到运行中
-                lockPage();
-                resetCountdowns();
-                await updateAllStocks();
-                unlockPage();
-                startTimers();
-            } else {
-                // 停止所有倒计时
-                stopTimers();
-            }
-            
-            updateButtonStates();
-            renderTable(); // 重新渲染以更新输入框禁用状态
-        };
-        
         refreshBtn.onclick = async () => {
-            if (refreshBtn.disabled) {
-                showError('刷新功能不可用，请稍后再试');
-                return;
-            }
-            
             const now = Date.now();
             if (now - lastRefreshTime < 5000) {
-                showError('刷新过于频繁，请稍后再试');
+                const waitTime = Math.ceil((5000 - (now - lastRefreshTime)) / 1000);
+                showError(`刷新过于频繁，请${waitTime}秒后再试`);
                 return;
             }
-            
             lastRefreshTime = now;
             
             // 停止倒计时
             stopTimers();
             
-            // 锁定页面更新所有数据
-            lockPage();
             await updateAllStocks();
-            unlockPage();
             
             // 重置倒计时
             resetCountdowns();
             
             // 重启倒计时
-            if (running) {
-                startTimers();
-            }
+            startTimers();
         };
         
         addRowBtn.onclick = () => {
-            if (addRowBtn.disabled) {
-                showDisabledMessage();
-                return;
-            }
             if (stocks.length >= 300) {
                 showError('最多只能添加300只股票');
                 return;
@@ -1063,19 +1127,12 @@
         };
         
         clearCacheBtn.onclick = async () => {
-            if (clearCacheBtn.disabled) {
-                showError('清除缓存功能当前不可用');
-                return;
-            }
             await clearAllCache();
         };
         
         saveStocksBtn.onclick = () => {
-            if (saveStocksBtn.disabled) {
-                showError('保存列表功能当前不可用');
-                return;
-            }
             saveStocksList();
+            showSuccess('股票列表已保存');
         };
         
         priceIntervalInput.onchange = () => {
@@ -1096,11 +1153,6 @@
             historyCountdownDisplay.textContent = formatHistoryCountdown(historyCountdownSeconds);
         };
         
-        // 定期更新按钮状态
-        setInterval(() => {
-            updateButtonStates();
-        }, 1000);
-        
         // 页面关闭时保存数据
         window.addEventListener('beforeunload', () => {
             saveStocksList();
@@ -1111,23 +1163,18 @@
             await initStocks();
             renderTable();
             
-            // 停止所有倒计时，锁定页面
+            // 停止所有倒计时
             stopTimers();
-            lockPage();
             
             // 更新所有数据
             updateStatus.textContent = '🔄 首次加载，正在获取历史数据...';
+            isInitialLoad = true;
             await updateAllStocks();
+            isInitialLoad = false;
             
             // 重置倒计时并启动
             resetCountdowns();
             startTimers();
-            
-            // 解锁页面
-            unlockPage();
-            
-            isInitialLoad = false;
-            updateButtonStates();
             
             // 健康检查
             try {

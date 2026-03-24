@@ -1,32 +1,10 @@
 {
-  "300750": {
-    "time": 1774277261512,
-    "data": {
-      "code": "300750",
-      "name": "宁德时代",
-      "price": 401.99,
-      "years": 7.8,
-      "last_date": "",
-      "day_avg": 268.84,
-      "week_avg": 268.89,
-      "month_avg": 268.78,
-      "season_avg": 264.46,
-      "year_avg": 268.02,
-      "total_avg": 267.8,
-      "low": 30.17,
-      "high": 692,
-      "diff": 134.19,
-      "diff_sign": "+",
-      "diff_class": "red",
-      "data_count": 1886
-    }
-  },
   "600008": {
-    "time": 1774328911274,
+    "time": 1774338936137,
     "data": {
       "code": "600008",
       "name": "首创环保",
-      "price": 3.12,
+      "price": 3.15,
       "years": 25.9,
       "last_date": "2026-03-23",
       "day_avg": 7.32,
@@ -37,40 +15,18 @@
       "total_avg": 7.34,
       "low": 2.5,
       "high": 25.58,
-      "diff": -4.22,
+      "diff": -4.1899999999999995,
       "diff_sign": "",
       "diff_class": "green",
       "data_count": 6183
     }
   },
-  "600036": {
-    "time": 1774277285011,
-    "data": {
-      "code": "600036",
-      "name": "招商银行",
-      "price": 38.68,
-      "years": 23.9,
-      "last_date": "",
-      "day_avg": 22.77,
-      "week_avg": 22.78,
-      "month_avg": 22.64,
-      "season_avg": 22.64,
-      "year_avg": 23.02,
-      "total_avg": 22.77,
-      "low": 5.86,
-      "high": 58.92,
-      "diff": 15.91,
-      "diff_sign": "+",
-      "diff_class": "red",
-      "data_count": 5740
-    }
-  },
   "600187": {
-    "time": 1774328903686,
+    "time": 1774335693291,
     "data": {
       "code": "600187",
       "name": "国中水务",
-      "price": 1.86,
+      "price": 1.89,
       "years": 27.4,
       "last_date": "2026-03-23",
       "day_avg": 6.89,
@@ -81,42 +37,42 @@
       "total_avg": 6.86,
       "low": 0.87,
       "high": 33,
-      "diff": -5,
+      "diff": -4.970000000000001,
       "diff_sign": "",
       "diff_class": "green",
       "data_count": 5737
     }
   },
   "600795": {
-    "time": 1774328882516,
+    "time": 1774336455720,
     "data": {
       "code": "600795",
       "name": "国电电力",
-      "price": 4.96,
+      "price": 4.98,
       "years": 29,
-      "last_date": "2026-03-20",
+      "last_date": "2026-03-23",
       "day_avg": 8.96,
-      "week_avg": 8.89,
+      "week_avg": 8.88,
       "month_avg": 8.98,
       "season_avg": 9.03,
       "year_avg": 8.91,
       "total_avg": 8.95,
       "low": 1.79,
       "high": 49.88,
-      "diff": -3.9899999999999993,
+      "diff": -3.969999999999999,
       "diff_sign": "",
       "diff_class": "green",
-      "data_count": 6858
+      "data_count": 6859
     }
   },
   "600905": {
-    "time": 1774328875250,
+    "time": 1774337828207,
     "data": {
       "code": "600905",
       "name": "三峡能源",
-      "price": 4.42,
+      "price": 4.44,
       "years": 4.8,
-      "last_date": "",
+      "last_date": "2026-03-23",
       "day_avg": 5.19,
       "week_avg": 5.19,
       "month_avg": 5.19,
@@ -125,128 +81,62 @@
       "total_avg": 5.19,
       "low": 3.18,
       "high": 8.79,
-      "diff": -0.7700000000000005,
+      "diff": -0.75,
       "diff_sign": "",
       "diff_class": "green",
-      "data_count": 1157
-    }
-  },
-  "601318": {
-    "time": 1774277276875,
-    "data": {
-      "code": "601318",
-      "name": "中国平安",
-      "price": 57.47,
-      "years": 19.1,
-      "last_date": "",
-      "day_avg": 54.05,
-      "week_avg": 54.03,
-      "month_avg": 54.01,
-      "season_avg": 53.94,
-      "year_avg": 54.71,
-      "total_avg": 54.15,
-      "low": 19.9,
-      "high": 149.28,
-      "diff": 3.3200000000000003,
-      "diff_sign": "+",
-      "diff_class": "red",
-      "data_count": 4565
+      "data_count": 1158
     }
   },
   "601728": {
-    "time": 1774328890334,
+    "time": 1774337672480,
     "data": {
       "code": "601728",
       "name": "中国电信",
-      "price": 5.84,
+      "price": 5.85,
       "years": 4.6,
-      "last_date": "2026-03-20",
+      "last_date": "2026-03-23",
       "day_avg": 5.7,
-      "week_avg": 5.7,
+      "week_avg": 5.71,
       "month_avg": 5.68,
       "season_avg": 5.67,
       "year_avg": 5.59,
       "total_avg": 5.67,
       "low": 3.65,
       "high": 8.61,
-      "diff": 0.16999999999999993,
+      "diff": 0.17999999999999972,
       "diff_sign": "+",
       "diff_class": "red",
-      "data_count": 1107
+      "data_count": 1108
     }
   },
   "601985": {
-    "time": 1774328867506,
+    "time": 1774335659772,
     "data": {
       "code": "601985",
       "name": "中国核电",
-      "price": 9.15,
+      "price": 9.14,
       "years": 10.8,
-      "last_date": "",
+      "last_date": "2026-03-23",
       "day_avg": 7.14,
       "week_avg": 7.14,
       "month_avg": 7.14,
       "season_avg": 7.18,
-      "year_avg": 7.35,
+      "year_avg": 7.36,
       "total_avg": 7.19,
       "low": 4.02,
       "high": 14.38,
-      "diff": 1.96,
+      "diff": 1.9500000000000002,
       "diff_sign": "+",
       "diff_class": "red",
-      "data_count": 2618
-    }
-  },
-  "000858": {
-    "time": 1774277254137,
-    "data": {
-      "code": "000858",
-      "name": "五粮液",
-      "price": 100.23,
-      "years": 27.9,
-      "last_date": "",
-      "day_avg": 64.2,
-      "week_avg": 64.36,
-      "month_avg": 63.79,
-      "season_avg": 63.3,
-      "year_avg": 64.26,
-      "total_avg": 63.98,
-      "low": 5.95,
-      "high": 357.19,
-      "diff": 36.25000000000001,
-      "diff_sign": "+",
-      "diff_class": "red",
-      "data_count": 6627
-    }
-  },
-  "002594": {
-    "time": 1774318390655,
-    "data": {
-      "code": "002594",
-      "name": "比亚迪",
-      "price": 106.2,
-      "years": 14.7,
-      "last_date": "",
-      "day_avg": 118.21,
-      "week_avg": 118.18,
-      "month_avg": 117.53,
-      "season_avg": 116.56,
-      "year_avg": 114.12,
-      "total_avg": 116.92,
-      "low": 13.51,
-      "high": 416.98,
-      "diff": -10.719999999999999,
-      "diff_sign": "",
-      "diff_class": "green",
-      "data_count": 3563
+      "data_count": 2619
     }
   },
   "003816": {
-    "time": 1774328918821,
+    "time": 1774335869975,
     "data": {
       "code": "003816",
       "name": "中国广核",
-      "price": 4.32,
+      "price": 4.37,
       "years": 6.6,
       "last_date": "2026-03-23",
       "day_avg": 3.31,
@@ -257,7 +147,7 @@
       "total_avg": 3.35,
       "low": 2.49,
       "high": 5.25,
-      "diff": 0.9700000000000002,
+      "diff": 1.02,
       "diff_sign": "+",
       "diff_class": "red",
       "data_count": 1591
