@@ -172,13 +172,7 @@
         .badge-warning {
             background: #ffc107;
             color: #333;
-        }
-        .disclaimer {
-            color: #dc3545;
-            font-size: 12px;
-            font-weight: bold;
-            margin-left: 15px;
-        }
+        }       
         .table-container {
             overflow-x: auto;
             max-height: 65vh;
@@ -399,13 +393,12 @@
             <button id="refreshBtn">🔄 立即刷新全部</button>
             <button id="addRowBtn">➕ 添加股票</button>
             <button id="clearCacheBtn" class="danger">🗑️ 清除缓存</button>
-            <button id="saveStocksBtn" class="warning">💾 保存列表</button>
-            <span class="disclaimer">⚠️ 数据仅供参考！任何损失后果自负！</span>
+            <button id="saveStocksBtn" class="warning">💾 保存列表</button>           
         </div>
         
         <div class="stats-bar">
-            <div><span class="badge" id="stockCount">0</span> 只股票</div>
-            <div id="updateStatus" style="color: #6c757d; font-size: 12px;"></div>
+            <div><span class="badge" id="stockCount">0</span> 只股票--数据仅供参考！任何损失后果自负！</div>
+            <div id="updateStatus" style="color: #6c757d; font-size: 17px;"></div>
             <div id="lastUpdateTime" class="last-update"></div>
         </div>
         
