@@ -173,6 +173,12 @@
             background: #ffc107;
             color: #333;
         }
+        .disclaimer {
+            color: #dc3545;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 15px;
+        }
         .table-container {
             overflow-x: auto;
             max-height: 65vh;
@@ -298,6 +304,15 @@
             font-size: 14px;
             font-weight: 500;
             text-align: center;
+            background: white;
+        }
+        input[type="text"].stock-code-input:disabled {
+            background: #e9ecef;
+            cursor: default;
+        }
+        input[type="text"].stock-code-input:enabled {
+            background: #fff3cd;
+            border-color: #ffc107;
         }
         .single-refresh {
             cursor: pointer;
@@ -324,13 +339,6 @@
         .code-input-wrapper {
             position: relative;
             display: inline-block;
-        }
-        .code-input-wrapper input {
-            background: #e9ecef;
-        }
-        .code-input-wrapper input.enabled {
-            background: white;
-            border-color: #007bff;
         }
         .delete-btn {
             background: #dc3545;
@@ -392,6 +400,7 @@
             <button id="addRowBtn">➕ 添加股票</button>
             <button id="clearCacheBtn" class="danger">🗑️ 清除缓存</button>
             <button id="saveStocksBtn" class="warning">💾 保存列表</button>
+            <span class="disclaimer">⚠️ 数据仅供参考！任何损失后果自负！</span>
         </div>
         
         <div class="stats-bar">
@@ -450,6 +459,8 @@
         let isHistoryUpdating = false;
         let isInitialLoad = true;
         let isClearingCache = false;
+        let isSingleUpdating = false; // 单只更新状态
+        let updatingStockCode = null; // 正在更新的股票代码
         
         const tableBody = document.getElementById('tableBody');
         const priceIntervalInput = document.getElementById('priceIntervalInput');
@@ -465,6 +476,135 @@
         const stockCount = document.getElementById('stockCount');
         const updateStatus = document.getElementById('updateStatus');
         const lastUpdateTime = document.getElementById('lastUpdateTime');
+        
+        // 全局禁用所有控件
+        function disableAllControls() {
+            refreshBtn.disabled = true;
+            addRowBtn.disabled = true;
+            clearCacheBtn.disabled = true;
+            saveStocksBtn.disabled = true;
+            priceIntervalInput.disabled = true;
+            historyIntervalInput.disabled = true;
+            
+            // 禁用所有行的删除按钮和刷新按钮
+            for (let i = 0; i < tableBody.children.length; i++) {
+                const row = tableBody.children[i];
+                if (row) {
+                    const deleteBtn = row.cells[row.cells.length - 1]?.querySelector('.delete-btn');
+                    if (deleteBtn) deleteBtn.disabled = true;
+                    const refreshBtnCell = row.cells[1]?.querySelector('.single-refresh');
+                    if (refreshBtnCell) refreshBtnCell.style.pointerEvents = 'none';
+                }
+            }
+        }
+        
+        // 全局启用所有控件
+        function enableAllControls() {
+            refreshBtn.disabled = false;
+            addRowBtn.disabled = false;
+            clearCacheBtn.disabled = false;
+            saveStocksBtn.disabled = false;
+            priceIntervalInput.disabled = false;
+            historyIntervalInput.disabled = false;
+            
+            // 启用所有行的删除按钮和刷新按钮
+            for (let i = 0; i < tableBody.children.length; i++) {
+                const row = tableBody.children[i];
+                if (row) {
+                    const deleteBtn = row.cells[row.cells.length - 1]?.querySelector('.delete-btn');
+                    if (deleteBtn) deleteBtn.disabled = false;
+                    const refreshBtnCell = row.cells[1]?.querySelector('.single-refresh');
+                    if (refreshBtnCell) refreshBtnCell.style.pointerEvents = 'auto';
+                }
+            }
+        }
+        
+        // 禁用单只股票的所有按钮和输入框
+        function disableSingleStockControls(row, stockCode) {
+            if (!row) return;
+            
+            // 禁用该行的删除按钮
+            const deleteBtn = row.cells[row.cells.length - 1]?.querySelector('.delete-btn');
+            if (deleteBtn) deleteBtn.disabled = true;
+            
+            // 禁用该行的刷新按钮
+            const refreshBtnCell = row.cells[1]?.querySelector('.single-refresh');
+            if (refreshBtnCell) refreshBtnCell.style.pointerEvents = 'none';
+            
+            // 禁用该行的代码输入框
+            const codeInput = row.cells[0]?.querySelector('.stock-code-input');
+            if (codeInput) codeInput.disabled = true;
+        }
+        
+        // 启用单只股票的所有按钮和输入框
+        function enableSingleStockControls(row, stockCode) {
+            if (!row) return;
+            
+            // 启用该行的删除按钮
+            const deleteBtn = row.cells[row.cells.length - 1]?.querySelector('.delete-btn');
+            if (deleteBtn) deleteBtn.disabled = false;
+            
+            // 启用该行的刷新按钮
+            const refreshBtnCell = row.cells[1]?.querySelector('.single-refresh');
+            if (refreshBtnCell) refreshBtnCell.style.pointerEvents = 'auto';
+            
+            // 启用该行的代码输入框
+            const codeInput = row.cells[0]?.querySelector('.stock-code-input');
+            if (codeInput) codeInput.disabled = false;
+        }
+        
+        // 停止所有倒计时
+        function stopTimers() {
+            if (priceTimer) {
+                clearInterval(priceTimer);
+                priceTimer = null;
+            }
+            if (historyTimer) {
+                clearInterval(historyTimer);
+                historyTimer = null;
+            }
+        }
+        
+        // 启动倒计时
+        function startTimers() {
+            // 现价倒计时
+            if (priceTimer) clearInterval(priceTimer);
+            priceTimer = setInterval(() => {
+                if (isPriceUpdating || isHistoryUpdating || isSingleUpdating) return;
+                
+                priceCountdown--;
+                priceCountdownDisplay.textContent = priceCountdown;
+                
+                if (priceCountdown <= 0) {
+                    priceCountdown = parseInt(priceIntervalInput.value);
+                    updatePricesOnly();
+                }
+            }, 1000);
+            
+            // 历史倒计时
+            if (historyTimer) clearInterval(historyTimer);
+            historyTimer = setInterval(() => {
+                if (isHistoryUpdating || isSingleUpdating) return;
+                
+                if (historyCountdownSeconds > 0) {
+                    historyCountdownSeconds--;
+                    historyCountdownDisplay.textContent = formatHistoryCountdown(historyCountdownSeconds);
+                }
+                
+                if (historyCountdownSeconds <= 0) {
+                    historyCountdownSeconds = parseInt(historyIntervalInput.value) * 60;
+                    updateAllStocks();
+                }
+            }, 1000);
+        }
+        
+        // 重置倒计时
+        function resetCountdowns() {
+            priceCountdown = parseInt(priceIntervalInput.value);
+            priceCountdownDisplay.textContent = priceCountdown;
+            historyCountdownSeconds = parseInt(historyIntervalInput.value) * 60;
+            historyCountdownDisplay.textContent = formatHistoryCountdown(historyCountdownSeconds);
+        }
         
         // 显示提示
         function showError(message) {
@@ -587,235 +727,7 @@
             return '';
         }
         
-        // 更新单行数据的删除按钮状态
-        function setDeleteButtonState(row, disabled) {
-            if (!row) return;
-            const deleteBtn = row.cells[row.cells.length - 1]?.querySelector('.delete-btn');
-            if (deleteBtn) {
-                deleteBtn.disabled = disabled;
-            }
-        }
-        
-        // 单只股票历史数据刷新
-        async function singleStockUpdate(index) {
-            const stock = stocks[index];
-            if (!stock.code || stock.code.length !== 6) {
-                showError('请先输入正确的股票代码');
-                return;
-            }
-            
-            const row = tableBody.children[index];
-            if (!row) return;
-            
-            // 禁用删除按钮
-            setDeleteButtonState(row, true);
-            
-            // 获取刷新按钮并显示加载状态
-            const refreshBtn = row.cells[1].querySelector('.single-refresh');
-            if (refreshBtn) {
-                refreshBtn.classList.add('refreshing');
-                refreshBtn.textContent = '⟳';
-            }
-            
-            // 显示加载状态
-            for (let j = 4; j <= 15; j++) {
-                if (row.cells[j]) {
-                    row.cells[j].innerHTML = '<div class="loading"></div>';
-                }
-            }
-            
-            try {
-                updateStatus.textContent = `🔄 正在更新 ${stock.code} 历史数据...`;
-                
-                const response = await fetch('/api/stock/single_update', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code: stock.code })
-                });
-                
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || '更新失败');
-                }
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-                
-                // 更新数据
-                stocks[index].data = data;
-                stocks[index].name = data.name;
-                updateRowData(row, data);
-                
-                // 保存列表
-                saveStocksList();
-                
-                updateStatus.textContent = `✅ ${stock.code} 历史数据更新完成`;
-                showSuccess(`${stock.code} ${data.name} 历史数据更新成功`);
-                
-                setTimeout(() => {
-                    if (updateStatus.textContent.includes('更新完成')) {
-                        updateStatus.textContent = '';
-                    }
-                }, 2000);
-                
-            } catch (error) {
-                console.error(`单只股票更新失败 ${stock.code}:`, error);
-                showError(`${stock.code}: ${error.message}`);
-                
-                // 恢复显示
-                for (let j = 4; j <= 15; j++) {
-                    if (row.cells[j]) {
-                        row.cells[j].textContent = '-';
-                    }
-                }
-            } finally {
-                if (refreshBtn) {
-                    refreshBtn.classList.remove('refreshing');
-                    refreshBtn.textContent = '↻';
-                }
-                // 启用删除按钮
-                setDeleteButtonState(row, false);
-                updateStatus.textContent = '';
-            }
-        }
-        
-        function renderTable() {
-            if (!tableBody) return;
-            tableBody.innerHTML = '';
-            
-            stocks.forEach((stock, index) => {
-                const row = document.createElement('tr');
-                
-                // 代码列
-                const codeCell = document.createElement('td');
-                const wrapper = document.createElement('div');
-                wrapper.className = 'code-input-wrapper';
-                const codeInput = document.createElement('input');
-                codeInput.type = 'text';
-                codeInput.value = stock.code;
-                codeInput.placeholder = '输入代码';
-                codeInput.style.width = '85px';
-                codeInput.style.fontSize = '14px';
-                codeInput.style.fontWeight = '500';
-                codeInput.style.textAlign = 'center';
-                codeInput.className = 'stock-code-input';
-                codeInput.disabled = true; // 默认禁用
-                
-                // 双击启用输入
-                codeInput.addEventListener('dblclick', (e) => {
-                    e.stopPropagation();
-                    if (codeInput.disabled) {
-                        codeInput.disabled = false;
-                        codeInput.classList.add('enabled');
-                        codeInput.focus();
-                    }
-                });
-                
-                // 失去焦点处理
-                codeInput.addEventListener('blur', async (e) => {
-                    if (!codeInput.disabled) {
-                        const newCode = e.target.value.trim();
-                        if (newCode && /^\d{6}$/.test(newCode) && newCode !== stock.code) {
-                            // 禁用当前行的删除按钮
-                            setDeleteButtonState(row, true);
-                            
-                            stocks[index].code = newCode;
-                            stocks[index].data = null;
-                            stocks[index].name = '';
-                            
-                            // 更新代码显示
-                            codeInput.value = newCode;
-                            
-                            // 重新渲染表格以更新市场标识等
-                            renderTable();
-                            
-                            // 等待DOM更新后获取新行索引
-                            setTimeout(async () => {
-                                const newIndex = stocks.findIndex(s => s.code === newCode);
-                                if (newIndex !== -1) {
-                                    await singleStockUpdate(newIndex);
-                                }
-                            }, 100);
-                        } else if (newCode && !/^\d{6}$/.test(newCode)) {
-                            showError('请输入6位数字股票代码');
-                            codeInput.value = stock.code;
-                        }
-                        codeInput.disabled = true;
-                        codeInput.classList.remove('enabled');
-                    }
-                });
-                
-                codeInput.addEventListener('keypress', async (e) => {
-                    if (e.key === 'Enter') {
-                        codeInput.blur();
-                    }
-                });
-                
-                wrapper.appendChild(codeInput);
-                codeCell.appendChild(wrapper);
-                row.appendChild(codeCell);
-                
-                // 单刷按钮列
-                const refreshCell = document.createElement('td');
-                const refreshBtn = document.createElement('div');
-                refreshBtn.className = 'single-refresh';
-                refreshBtn.textContent = '↻';
-                refreshBtn.title = '刷新历史数据';
-                refreshBtn.onclick = () => singleStockUpdate(index);
-                refreshCell.appendChild(refreshBtn);
-                row.appendChild(refreshCell);
-                
-                // 名称列
-                const nameCell = document.createElement('td');
-                nameCell.textContent = stock.name || '-';
-                nameCell.className = 'stock-name';
-                row.appendChild(nameCell);
-                
-                // 市场列
-                const marketCell = document.createElement('td');
-                const marketBadge = document.createElement('span');
-                marketBadge.className = `status-badge ${getMarketClass(stock.code)}`;
-                marketBadge.textContent = getMarketType(stock.code);
-                marketCell.appendChild(marketBadge);
-                row.appendChild(marketCell);
-                
-                // 创建所有数据列
-                for (let i = 0; i < 12; i++) {
-                    const cell = document.createElement('td');
-                    cell.textContent = '-';
-                    row.appendChild(cell);
-                }
-                
-                // 操作列
-                const actionCell = document.createElement('td');
-                const deleteBtn = document.createElement('button');
-                deleteBtn.textContent = '删除';
-                deleteBtn.className = 'delete-btn';
-                deleteBtn.style.background = '#dc3545';
-                deleteBtn.style.padding = '4px 12px';
-                deleteBtn.style.fontSize = '12px';
-                deleteBtn.onclick = () => {
-                    if (deleteBtn.disabled) return;
-                    if (confirm(`确定要删除股票 ${stock.code} ${stock.name} 吗？`)) {
-                        stocks.splice(index, 1);
-                        renderTable();
-                        saveStocksList();
-                    }
-                };
-                actionCell.appendChild(deleteBtn);
-                row.appendChild(actionCell);
-                
-                if (stock.data) {
-                    updateRowData(row, stock.data);
-                }
-                
-                tableBody.appendChild(row);
-            });
-        }
-        
+        // 更新单行数据
         function updateRowData(row, data) {
             if (!row || !data) return;
             const cells = row.cells;
@@ -865,6 +777,112 @@
             }
         }
         
+        // 单只股票历史数据刷新
+        async function singleStockUpdate(index) {
+            const stock = stocks[index];
+            if (!stock.code || stock.code.length !== 6) {
+                showError('请先输入正确的股票代码');
+                return;
+            }
+            
+            // 防止重复更新
+            if (isSingleUpdating && updatingStockCode === stock.code) {
+                showError(`${stock.code} 正在更新中，请稍后再试`);
+                return;
+            }
+            
+            const row = tableBody.children[index];
+            if (!row) return;
+            
+            // 设置单只更新状态
+            isSingleUpdating = true;
+            updatingStockCode = stock.code;
+            
+            // 停止倒计时
+            stopTimers();
+            
+            // 禁用该只股票的所有控件
+            disableSingleStockControls(row, stock.code);
+            
+            // 获取刷新按钮并显示加载状态
+            const refreshBtnCell = row.cells[1].querySelector('.single-refresh');
+            if (refreshBtnCell) {
+                refreshBtnCell.classList.add('refreshing');
+                refreshBtnCell.textContent = '⟳';
+            }
+            
+            // 显示加载状态
+            for (let j = 4; j <= 15; j++) {
+                if (row.cells[j]) {
+                    row.cells[j].innerHTML = '<div class="loading"></div>';
+                }
+            }
+            
+            try {
+                updateStatus.textContent = `🔄 正在更新 ${stock.code} 历史数据...`;
+                
+                const response = await fetch('/api/stock/single_update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: stock.code })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || '更新失败');
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // 更新数据
+                stocks[index].data = data;
+                stocks[index].name = data.name;
+                updateRowData(row, data);
+                
+                // 保存整个列表数据
+                saveStocksList();
+                
+                updateStatus.textContent = `✅ ${stock.code} 历史数据更新完成`;
+                showSuccess(`${stock.code} ${data.name} 历史数据更新成功`);
+                
+                setTimeout(() => {
+                    if (updateStatus.textContent.includes('更新完成')) {
+                        updateStatus.textContent = '';
+                    }
+                }, 2000);
+                
+            } catch (error) {
+                console.error(`单只股票更新失败 ${stock.code}:`, error);
+                showError(`${stock.code}: ${error.message}`);
+                
+                // 恢复显示
+                for (let j = 4; j <= 15; j++) {
+                    if (row.cells[j]) {
+                        row.cells[j].textContent = '-';
+                    }
+                }
+            } finally {
+                if (refreshBtnCell) {
+                    refreshBtnCell.classList.remove('refreshing');
+                    refreshBtnCell.textContent = '↻';
+                }
+                // 启用该只股票的所有控件
+                enableSingleStockControls(row, stock.code);
+                
+                // 重置单只更新状态
+                isSingleUpdating = false;
+                updatingStockCode = null;
+                
+                // 重启倒计时
+                startTimers();
+                updateStatus.textContent = '';
+            }
+        }
+        
         async function fetchStockData(code) {
             if (!code || code.length !== 6) return null;
             try {
@@ -881,7 +899,7 @@
         }
         
         async function updateAllStocks() {
-            if (isHistoryUpdating) {
+            if (isHistoryUpdating || isSingleUpdating) {
                 console.log('历史数据更新中，跳过本次请求');
                 return;
             }
@@ -889,10 +907,11 @@
             isHistoryUpdating = true;
             updateStatus.textContent = '🔄 正在更新历史数据...';
             
-            // 禁用所有删除按钮
-            for (let i = 0; i < tableBody.children.length; i++) {
-                setDeleteButtonState(tableBody.children[i], true);
-            }
+            // 停止倒计时
+            stopTimers();
+            
+            // 禁用所有控件
+            disableAllControls();
             
             let successCount = 0;
             let failCount = 0;
@@ -934,6 +953,9 @@
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
             
+            // 保存整个列表数据
+            saveStocksList();
+            
             updateStatus.textContent = `✅ 历史数据更新完成 | 成功: ${successCount} | 失败: ${failCount}`;
             lastUpdateTime.textContent = `最后更新: ${new Date().toLocaleTimeString()}`;
             
@@ -943,20 +965,19 @@
                 }
             }, 3000);
             
-            // 保存股票列表
-            saveStocksList();
+            // 启用所有控件
+            enableAllControls();
             
-            // 启用所有删除按钮
-            for (let i = 0; i < tableBody.children.length; i++) {
-                setDeleteButtonState(tableBody.children[i], false);
-            }
+            // 重置并重启倒计时
+            resetCountdowns();
+            startTimers();
             
             isHistoryUpdating = false;
         }
         
         // 仅更新现价
         async function updatePricesOnly() {
-            if (isPriceUpdating) {
+            if (isPriceUpdating || isHistoryUpdating || isSingleUpdating) {
                 console.log('现价更新中，跳过本次请求');
                 return;
             }
@@ -1036,9 +1057,7 @@
             stopTimers();
             
             // 禁用按钮
-            refreshBtn.disabled = true;
-            clearCacheBtn.disabled = true;
-            saveStocksBtn.disabled = true;
+            disableAllControls();
             
             updateStatus.textContent = '🗑️ 正在清除缓存...';
             
@@ -1063,80 +1082,150 @@
             updateStatus.textContent = '';
             isClearingCache = false;
             
+            // 启用所有控件
+            enableAllControls();
+            
             // 重启倒计时
             startTimers();
+        }
+        
+        function renderTable() {
+            if (!tableBody) return;
+            tableBody.innerHTML = '';
             
-            // 恢复按钮状态
-            refreshBtn.disabled = false;
-            clearCacheBtn.disabled = false;
-            saveStocksBtn.disabled = false;
-        }
-        
-        // 停止所有倒计时
-        function stopTimers() {
-            if (priceTimer) {
-                clearInterval(priceTimer);
-                priceTimer = null;
-            }
-            if (historyTimer) {
-                clearInterval(historyTimer);
-                historyTimer = null;
-            }
-        }
-        
-        // 启动倒计时
-        function startTimers() {
-            // 现价倒计时
-            if (priceTimer) clearInterval(priceTimer);
-            priceTimer = setInterval(() => {
-                if (isPriceUpdating || isHistoryUpdating) return;
+            stocks.forEach((stock, index) => {
+                const row = document.createElement('tr');
                 
-                priceCountdown--;
-                priceCountdownDisplay.textContent = priceCountdown;
+                // 代码列
+                const codeCell = document.createElement('td');
+                const wrapper = document.createElement('div');
+                wrapper.className = 'code-input-wrapper';
+                const codeInput = document.createElement('input');
+                codeInput.type = 'text';
+                codeInput.value = stock.code;
+                codeInput.placeholder = '输入代码';
+                codeInput.style.width = '85px';
+                codeInput.style.fontSize = '14px';
+                codeInput.style.fontWeight = '500';
+                codeInput.style.textAlign = 'center';
+                codeInput.className = 'stock-code-input';
+                codeInput.disabled = false; // 启用输入框
                 
-                if (priceCountdown <= 0) {
-                    priceCountdown = parseInt(priceIntervalInput.value);
-                    updatePricesOnly();
+                // 失去焦点处理
+                codeInput.addEventListener('blur', async (e) => {
+                    const newCode = e.target.value.trim();
+                    if (newCode && /^\d{6}$/.test(newCode) && newCode !== stock.code) {
+                        // 检查是否正在更新
+                        if (isSingleUpdating || isHistoryUpdating) {
+                            showError('请等待当前更新完成后再修改股票代码');
+                            codeInput.value = stock.code;
+                            return;
+                        }
+                        
+                        // 禁用当前行的删除按钮和刷新按钮
+                        const currentRow = e.target.closest('tr');
+                        disableSingleStockControls(currentRow, stock.code);
+                        
+                        stocks[index].code = newCode;
+                        stocks[index].data = null;
+                        stocks[index].name = '';
+                        
+                        // 更新代码显示
+                        codeInput.value = newCode;
+                        
+                        // 重新渲染表格以更新市场标识等
+                        renderTable();
+                        
+                        // 等待DOM更新后获取新行索引
+                        setTimeout(async () => {
+                            const newIndex = stocks.findIndex(s => s.code === newCode);
+                            if (newIndex !== -1) {
+                                await singleStockUpdate(newIndex);
+                            }
+                        }, 100);
+                    } else if (newCode && !/^\d{6}$/.test(newCode)) {
+                        showError('请输入6位数字股票代码');
+                        codeInput.value = stock.code;
+                    }
+                });
+                
+                codeInput.addEventListener('keypress', async (e) => {
+                    if (e.key === 'Enter') {
+                        codeInput.blur();
+                    }
+                });
+                
+                wrapper.appendChild(codeInput);
+                codeCell.appendChild(wrapper);
+                row.appendChild(codeCell);
+                
+                // 单刷按钮列
+                const refreshCell = document.createElement('td');
+                const refreshBtn = document.createElement('div');
+                refreshBtn.className = 'single-refresh';
+                refreshBtn.textContent = '↻';
+                refreshBtn.title = '刷新历史数据';
+                refreshBtn.onclick = () => singleStockUpdate(index);
+                refreshCell.appendChild(refreshBtn);
+                row.appendChild(refreshCell);
+                
+                // 名称列
+                const nameCell = document.createElement('td');
+                nameCell.textContent = stock.name || '-';
+                nameCell.className = 'stock-name';
+                row.appendChild(nameCell);
+                
+                // 市场列
+                const marketCell = document.createElement('td');
+                const marketBadge = document.createElement('span');
+                marketBadge.className = `status-badge ${getMarketClass(stock.code)}`;
+                marketBadge.textContent = getMarketType(stock.code);
+                marketCell.appendChild(marketBadge);
+                row.appendChild(marketCell);
+                
+                // 创建所有数据列
+                for (let i = 0; i < 12; i++) {
+                    const cell = document.createElement('td');
+                    cell.textContent = '-';
+                    row.appendChild(cell);
                 }
-            }, 1000);
+                
+                // 操作列
+                const actionCell = document.createElement('td');
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = '删除';
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.style.background = '#dc3545';
+                deleteBtn.style.padding = '4px 12px';
+                deleteBtn.style.fontSize = '12px';
+                deleteBtn.onclick = () => {
+                    if (deleteBtn.disabled) return;
+                    if (confirm(`确定要删除股票 ${stock.code} ${stock.name} 吗？`)) {
+                        stocks.splice(index, 1);
+                        renderTable();
+                        saveStocksList();
+                    }
+                };
+                actionCell.appendChild(deleteBtn);
+                row.appendChild(actionCell);
+                
+                if (stock.data) {
+                    updateRowData(row, stock.data);
+                }
+                
+                tableBody.appendChild(row);
+            });
             
-            // 历史倒计时
-            if (historyTimer) clearInterval(historyTimer);
-            historyTimer = setInterval(() => {
-                if (isHistoryUpdating) return;
-                
-                if (historyCountdownSeconds > 0) {
-                    historyCountdownSeconds--;
-                    historyCountdownDisplay.textContent = formatHistoryCountdown(historyCountdownSeconds);
-                }
-                
-                if (historyCountdownSeconds <= 0) {
-                    historyCountdownSeconds = parseInt(historyIntervalInput.value) * 60;
-                    updateAllStocks();
-                }
-            }, 1000);
-        }
-        
-        // 重置倒计时
-        function resetCountdowns() {
-            priceCountdown = parseInt(priceIntervalInput.value);
-            priceCountdownDisplay.textContent = priceCountdown;
-            historyCountdownSeconds = parseInt(historyIntervalInput.value) * 60;
-            historyCountdownDisplay.textContent = formatHistoryCountdown(historyCountdownSeconds);
+            updateStockCount();
         }
         
         // 事件绑定
         refreshBtn.onclick = async () => {
-            // 停止倒计时
-            stopTimers();
-            
+            if (isHistoryUpdating || isSingleUpdating) {
+                showError('正在更新中，请稍后再试');
+                return;
+            }
             await updateAllStocks();
-            
-            // 重置倒计时
-            resetCountdowns();
-            
-            // 重启倒计时
-            startTimers();
         };
         
         addRowBtn.onclick = () => {

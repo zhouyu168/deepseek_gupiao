@@ -454,11 +454,17 @@ def load_cached_indicators(code):
         for filename in os.listdir(LS_DATA_DIR):
             if filename.startswith(code) and filename.endswith('_indicators.json'):
                 filepath = os.path.join(LS_DATA_DIR, filename)
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    # 提取股票名称
-                    name = filename.replace(f"{code}_", "").replace("_indicators.json", "")
-                    return data, name
+                # 检查文件修改日期
+                modify_time = datetime.fromtimestamp(os.path.getmtime(filepath))
+                # 如果缓存是今天的，返回缓存数据
+                if modify_time.date() == datetime.now().date():
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        name = filename.replace(f"{code}_", "").replace("_indicators.json", "")
+                        return data, name
+                else:
+                    # 缓存不是今天的，返回None表示需要更新
+                    return None, None
         return None, None
     except Exception as e:
         logger.error(f"加载缓存指标失败 {code}: {e}")
@@ -514,15 +520,11 @@ def get_stock_history():
                 'price': round(current_price, 2)
             })
         
-        # 检查是否需要更新历史数据（每天只需1次）
-        need_update = force_refresh or should_update_history(code)
+        # 优先使用缓存（如果缓存是今天的）
+        cached_indicators, cached_name = load_cached_indicators(code)
         
-        cached_indicators, cached_name = None, None
-        if not need_update:
-            cached_indicators, cached_name = load_cached_indicators(code)
-        
-        if cached_indicators and cached_indicators.get('data_count', 0) > 0:
-            logger.info(f"使用缓存历史数据: {code}")
+        if cached_indicators and cached_indicators.get('data_count', 0) > 0 and not force_refresh:
+            logger.info(f"使用今日缓存历史数据: {code}")
             
             # 获取实时价格
             current_price = get_realtime_price(code)
@@ -547,6 +549,39 @@ def get_stock_history():
             }
             
             return jsonify(result)
+        
+        # 检查是否需要更新历史数据（每天只需1次）
+        need_update = force_refresh or should_update_history(code)
+        
+        if not need_update and not force_refresh:
+            # 使用非今日缓存
+            for filename in os.listdir(LS_DATA_DIR):
+                if filename.startswith(code) and filename.endswith('_indicators.json'):
+                    filepath = os.path.join(LS_DATA_DIR, filename)
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        cached_indicators = json.load(f)
+                        cached_name = filename.replace(f"{code}_", "").replace("_indicators.json", "")
+                    if cached_indicators:
+                        logger.info(f"使用历史缓存数据: {code}")
+                        current_price = get_realtime_price(code)
+                        name = cached_name or get_stock_name(code)
+                        result = {
+                            'code': code,
+                            'name': name,
+                            'price': round(current_price, 2) if current_price else None,
+                            'years': cached_indicators.get('years', 0),
+                            'last_date': cached_indicators.get('last_date', ''),
+                            'day_avg': cached_indicators.get('day_avg', 0),
+                            'week_avg': cached_indicators.get('week_avg', 0),
+                            'month_avg': cached_indicators.get('month_avg', 0),
+                            'season_avg': cached_indicators.get('season_avg', 0),
+                            'year_avg': cached_indicators.get('year_avg', 0),
+                            'total_avg': cached_indicators.get('total_avg', 0),
+                            'low': cached_indicators.get('low', 0),
+                            'high': cached_indicators.get('high', 0),
+                            'data_count': cached_indicators.get('data_count', 0)
+                        }
+                        return jsonify(result)
         
         # 获取历史数据
         logger.info(f"从BaoStock获取历史数据: {code}")
@@ -758,7 +793,7 @@ if __name__ == '__main__':
     print("✅ 数据源: BaoStock (历史数据) + AKShare (实时股价)")
     print("✅ 计算指标: 日均、周均、月均、季均、年均、总均价")
     print("✅ 算法: 基于成交额/成交量的加权均价")
-    print("✅ 历史数据: 每天自动更新1次")
+    print("✅ 历史数据: 每天自动更新1次，优先使用今日缓存")
     print("=" * 60)
     
     app.run(host='0.0.0.0', port=5001, debug=False, threaded=True)
