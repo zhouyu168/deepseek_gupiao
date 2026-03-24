@@ -132,7 +132,7 @@
             border: 1px solid #ced4da;
             border-radius: 4px;
             text-align: center;
-            font-size: 12px;
+            font-size: 13px;
         }
         input:disabled {
             background: #e9ecef;
@@ -172,11 +172,11 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 13px; /* 字体稍微调大 */
+            font-size: 14px; /* 字体调大 */
         }
         th {
             background: #f8f9fa;
-            padding: 10px 4px;
+            padding: 10px 8px;
             text-align: center;
             font-weight: 600;
             color: #495057;
@@ -185,13 +185,13 @@
             top: 0;
             z-index: 10;
             white-space: nowrap;
-            font-size: 13px; /* 字体稍微调大 */
+            font-size: 14px; /* 字体调大 */
         }
         td {
-            padding: 8px 4px; /* 增加内边距 */
+            padding: 8px 8px;
             text-align: center;
             border-bottom: 1px solid #dee2e6;
-            font-size: 13px; /* 字体稍微调大 */
+            font-size: 14px; /* 字体调大 */
         }
         tr:hover { background: #f8f9fa; }
         .price-red { background: #ffebee; color: #c62828; font-weight: bold; }
@@ -199,7 +199,7 @@
         .diff-red { background: #ffebee; color: #c62828; font-weight: bold; }
         .diff-green { background: #e8f5e9; color: #2e7d32; font-weight: bold; }
         .last-date-red { background: #ffebee; color: #c62828; }
-        .stock-name { font-weight: 600; color: #007bff; }
+        .stock-name { font-weight: 600; color: #007bff; font-size: 14px; }
         .error-message {
             background: #ffebee;
             color: #c62828;
@@ -303,6 +303,13 @@
             color: white;
             font-size: 40px;
             cursor: pointer;
+        }
+        /* 股票代码输入框字体调大 */
+        input[type="text"].stock-code-input {
+            width: 80px;
+            font-size: 14px;
+            font-weight: 500;
+            text-align: center;
         }
     </style>
 </head>
@@ -532,18 +539,18 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ stocks: stocksToSave })
             }).then(response => response.json())
-              .then(data => {
-                  if (data.message) {
-                      console.log('股票列表已保存:', data.message);
-                      showSuccess('股票列表已保存成功！');
-                  } else {
-                      console.error('保存股票列表失败:', data);
-                      showError('保存股票列表失败');
-                  }
-              }).catch(err => {
-                  console.error('保存股票列表失败:', err);
-                  showError('保存股票列表失败');
-              });
+             .then(data => {
+                if (data.message) {
+                    console.log('股票列表已保存:', data.message);
+                    showSuccess('股票列表已保存成功！');
+                } else {
+                    console.error('保存股票列表失败:', data);
+                    showError('保存股票列表失败');
+                }
+             }).catch(err => {
+                console.error('保存股票列表失败:', err);
+                showError('保存股票列表失败');
+             });
         }
         
         function getMarketType(code) {
@@ -588,7 +595,11 @@
                 codeInput.type = 'text';
                 codeInput.value = stock.code;
                 codeInput.placeholder = '输入代码';
-                codeInput.style.width = '80px';
+                codeInput.style.width = '85px';
+                codeInput.style.fontSize = '14px';
+                codeInput.style.fontWeight = '500';
+                codeInput.style.textAlign = 'center';
+                codeInput.className = 'stock-code-input';
                 codeInput.disabled = running;
                 codeInput.addEventListener('change', (e) => {
                     const newCode = e.target.value.trim();
@@ -777,6 +788,9 @@
                 }
             }, 3000);
             
+            // 保存股票列表
+            saveStocksList();
+            
             isHistoryUpdating = false;
             unlockPage();
         }
@@ -902,11 +916,11 @@
             // 运行中/停止按钮
             toggleBtn.disabled = false;
             
-            // 间隔输入框：停止时启用，运行时禁用
+            // 间隔输入框：运行中时禁用，停止时启用
             priceIntervalInput.disabled = running;
             historyIntervalInput.disabled = running;
             
-            // 添加股票按钮：停止时启用
+            // 添加股票按钮：运行中时禁用，停止时启用
             addRowBtn.disabled = running;
             
             // 清除缓存按钮：无历史数据更新时启用
@@ -915,7 +929,7 @@
             // 保存列表按钮：清除缓存时禁用
             saveStocksBtn.disabled = isClearingCache;
             
-            // 立即刷新按钮：运行中且无历史更新时启用
+            // 立即刷新按钮：停止时禁用，运行中且无历史更新时启用
             const now = Date.now();
             const canRefresh = running && !isHistoryUpdating && (now - lastRefreshTime >= 5000);
             refreshBtn.disabled = !canRefresh;
@@ -988,7 +1002,7 @@
             toggleBtn.className = running ? 'running' : 'stopped';
             
             if (running) {
-                // 从停止切换到运行中，锁定页面更新所有数据
+                // 从停止切换到运行中
                 lockPage();
                 resetCountdowns();
                 await updateAllStocks();
@@ -1097,14 +1111,20 @@
             await initStocks();
             renderTable();
             
-            // 首次加载：锁定页面，更新所有数据
+            // 停止所有倒计时，锁定页面
+            stopTimers();
             lockPage();
+            
+            // 更新所有数据
             updateStatus.textContent = '🔄 首次加载，正在获取历史数据...';
             await updateAllStocks();
-            unlockPage();
             
+            // 重置倒计时并启动
             resetCountdowns();
             startTimers();
+            
+            // 解锁页面
+            unlockPage();
             
             isInitialLoad = false;
             updateButtonStates();

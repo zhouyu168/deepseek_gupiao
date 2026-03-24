@@ -381,7 +381,7 @@ def calculate_all_indicators(df):
     today = datetime.now()
     years = (today - first_date).days / 365.25
     
-    # 2. 最后交易日
+    # 2. 最后交易日（从DataFrame中获取最后一条记录的日期）
     last_date = df['date'].max().strftime('%Y-%m-%d')
     
     # 3. 日均价（上市至今所有交易日日均价的平均值）

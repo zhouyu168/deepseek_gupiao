@@ -1,8 +1,12 @@
 @echo off
 chcp 65001 >nul
+cd /d D:\zhouyu\word\gupiao\deepseek_gupiao
+
 echo ========================================
 echo 启动股票分析系统
 echo ========================================
+echo.
+echo 工作目录: %cd%
 echo.
 
 echo [1/3] 检查Python环境...
@@ -33,6 +37,9 @@ echo.
 echo 数据存储位置:
 echo   - 历史数据: D:\zhouyu\word\gupiao\deepseek_gupiao\gpData
 echo   - 本地数据: D:\zhouyu\word\gupiao\deepseek_gupiao\gpLSData
+echo.
+echo 注意：请保持两个命令行窗口运行
+echo 关闭此窗口不影响服务运行
 echo.
 echo 按任意键退出...
 pause >nul
