@@ -1,10 +1,10 @@
 {
   "300189": {
-    "time": 1774364732074,
+    "time": 1774441960489,
     "data": {
       "code": "300189",
       "name": "神农种业",
-      "price": 7.18,
+      "price": 7.27,
       "years": 15,
       "last_date": "2026-03-24",
       "day_avg": 6.8,
@@ -15,18 +15,18 @@
       "total_avg": 6.93,
       "low": 1.68,
       "high": 28.56,
-      "diff": 0.25,
+      "diff": 0.33999999999999986,
       "diff_sign": "+",
       "diff_class": "red",
       "data_count": 3379
     }
   },
   "600008": {
-    "time": 1774364662294,
+    "time": 1774441945580,
     "data": {
       "code": "600008",
       "name": "首创环保",
-      "price": 3.15,
+      "price": 3.25,
       "years": 25.9,
       "last_date": "2026-03-24",
       "day_avg": 7.32,
@@ -37,21 +37,21 @@
       "total_avg": 7.34,
       "low": 2.5,
       "high": 25.58,
-      "diff": -4.1899999999999995,
+      "diff": -4.09,
       "diff_sign": "",
       "diff_class": "green",
       "data_count": 6184
     }
   },
   "600187": {
-    "time": 1774364653828,
+    "time": 1774441938378,
     "data": {
       "code": "600187",
       "name": "国中水务",
-      "price": 1.89,
+      "price": 1.99,
       "years": 27.4,
-      "last_date": "2026-03-23",
-      "day_avg": 6.89,
+      "last_date": "2026-03-24",
+      "day_avg": 6.88,
       "week_avg": 6.87,
       "month_avg": 6.91,
       "season_avg": 6.87,
@@ -59,18 +59,18 @@
       "total_avg": 6.86,
       "low": 0.87,
       "high": 33,
-      "diff": -4.970000000000001,
+      "diff": -4.87,
       "diff_sign": "",
       "diff_class": "green",
-      "data_count": 5737
+      "data_count": 5738
     }
   },
   "600795": {
-    "time": 1774364639701,
+    "time": 1774441923107,
     "data": {
       "code": "600795",
       "name": "国电电力",
-      "price": 4.98,
+      "price": 5.08,
       "years": 29,
       "last_date": "2026-03-24",
       "day_avg": 8.96,
@@ -81,18 +81,18 @@
       "total_avg": 8.95,
       "low": 1.79,
       "high": 49.88,
-      "diff": -3.969999999999999,
+      "diff": -3.869999999999999,
       "diff_sign": "",
       "diff_class": "green",
       "data_count": 6860
     }
   },
   "600905": {
-    "time": 1774364631765,
+    "time": 1774441915081,
     "data": {
       "code": "600905",
       "name": "三峡能源",
-      "price": 4.44,
+      "price": 4.56,
       "years": 4.8,
       "last_date": "2026-03-24",
       "day_avg": 5.19,
@@ -103,18 +103,18 @@
       "total_avg": 5.19,
       "low": 3.18,
       "high": 8.79,
-      "diff": -0.75,
+      "diff": -0.6300000000000008,
       "diff_sign": "",
       "diff_class": "green",
       "data_count": 1159
     }
   },
   "601728": {
-    "time": 1774364646783,
+    "time": 1774441930876,
     "data": {
       "code": "601728",
       "name": "中国电信",
-      "price": 5.85,
+      "price": 5.83,
       "years": 4.6,
       "last_date": "2026-03-24",
       "day_avg": 5.7,
@@ -125,18 +125,18 @@
       "total_avg": 5.67,
       "low": 3.65,
       "high": 8.61,
-      "diff": 0.17999999999999972,
+      "diff": 0.16000000000000014,
       "diff_sign": "+",
       "diff_class": "red",
       "data_count": 1109
     }
   },
   "601985": {
-    "time": 1774364704416,
+    "time": 1774441907289,
     "data": {
       "code": "601985",
       "name": "中国核电",
-      "price": 9.14,
+      "price": 9.33,
       "years": 10.8,
       "last_date": "2026-03-24",
       "day_avg": 7.14,
@@ -147,18 +147,18 @@
       "total_avg": 7.19,
       "low": 4.02,
       "high": 14.38,
-      "diff": 1.9500000000000002,
+      "diff": 2.1399999999999997,
       "diff_sign": "+",
       "diff_class": "red",
       "data_count": 2620
     }
   },
   "003816": {
-    "time": 1774364669269,
+    "time": 1774441952310,
     "data": {
       "code": "003816",
       "name": "中国广核",
-      "price": 4.37,
+      "price": 4.51,
       "years": 6.6,
       "last_date": "2026-03-24",
       "day_avg": 3.32,
@@ -169,7 +169,7 @@
       "total_avg": 3.35,
       "low": 2.49,
       "high": 5.25,
-      "diff": 1.02,
+      "diff": 1.1599999999999997,
       "diff_sign": "+",
       "diff_class": "red",
       "data_count": 1592
