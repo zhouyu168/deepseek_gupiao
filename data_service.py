@@ -295,7 +295,7 @@ def get_realtime_price_sina(code):
 
 
 def get_realtime_price(code):
-    """获取实时股价（主方法）"""
+    """获取实时股价（主方法）- 不使用任何缓存"""
     # 优先使用AKShare
     price = get_realtime_price_akshare(code)
     if price is not None:
@@ -447,8 +447,8 @@ def save_stock_data(code, name, df, indicators):
         logger.error(f"保存数据失败 {code}: {e}")
 
 
-def load_cached_indicators(code):
-    """加载缓存的指标数据"""
+def get_today_cached_indicators(code):
+    """获取今日缓存的指标数据，如果不是今天的缓存返回None"""
     try:
         # 查找指标文件
         for filename in os.listdir(LS_DATA_DIR):
@@ -456,14 +456,15 @@ def load_cached_indicators(code):
                 filepath = os.path.join(LS_DATA_DIR, filename)
                 # 检查文件修改日期
                 modify_time = datetime.fromtimestamp(os.path.getmtime(filepath))
-                # 如果缓存是今天的，返回缓存数据
+                # 只有当缓存是今天的才返回
                 if modify_time.date() == datetime.now().date():
                     with open(filepath, 'r', encoding='utf-8') as f:
                         data = json.load(f)
                         name = filename.replace(f"{code}_", "").replace("_indicators.json", "")
                         return data, name
                 else:
-                    # 缓存不是今天的，返回None表示需要更新
+                    # 缓存不是今天的，返回None
+                    logger.info(f"{code} 缓存不是今天的，需要更新")
                     return None, None
         return None, None
     except Exception as e:
@@ -474,8 +475,9 @@ def load_cached_indicators(code):
 def should_update_history(code):
     """判断是否需要更新历史数据（每天只需更新1次）"""
     # 检查内存中的记录
+    today = datetime.now().strftime('%Y-%m-%d')
     if code in last_history_update:
-        if last_history_update[code] == datetime.now().strftime('%Y-%m-%d'):
+        if last_history_update[code] == today:
             return False
     
     # 检查文件中的更新时间
@@ -495,7 +497,7 @@ def should_update_history(code):
 
 @app.route('/api/stock/history', methods=['GET'])
 def get_stock_history():
-    """获取A股历史数据（完整数据）"""
+    """获取A股历史数据（完整数据）- 历史数据使用当日缓存，严禁使用过期缓存"""
     code = request.args.get('code')
     force_refresh = request.args.get('force', 'false').lower() == 'true'
     only_price = request.args.get('only_price', 'false').lower() == 'true'
@@ -520,13 +522,14 @@ def get_stock_history():
                 'price': round(current_price, 2)
             })
         
-        # 优先使用缓存（如果缓存是今天的）
-        cached_indicators, cached_name = load_cached_indicators(code)
+        # 历史数据：优先使用今日缓存，如果不是今日缓存则必须重新获取
+        today_cached_indicators, cached_name = get_today_cached_indicators(code)
         
-        if cached_indicators and cached_indicators.get('data_count', 0) > 0 and not force_refresh:
+        # 如果有今日缓存且不需要强制刷新，使用缓存
+        if today_cached_indicators and today_cached_indicators.get('data_count', 0) > 0 and not force_refresh:
             logger.info(f"使用今日缓存历史数据: {code}")
             
-            # 获取实时价格
+            # 获取实时价格（实时价格必须实时获取）
             current_price = get_realtime_price(code)
             
             name = cached_name or get_stock_name(code)
@@ -535,53 +538,50 @@ def get_stock_history():
                 'code': code,
                 'name': name,
                 'price': round(current_price, 2) if current_price else None,
-                'years': cached_indicators.get('years', 0),
-                'last_date': cached_indicators.get('last_date', ''),
-                'day_avg': cached_indicators.get('day_avg', 0),
-                'week_avg': cached_indicators.get('week_avg', 0),
-                'month_avg': cached_indicators.get('month_avg', 0),
-                'season_avg': cached_indicators.get('season_avg', 0),
-                'year_avg': cached_indicators.get('year_avg', 0),
-                'total_avg': cached_indicators.get('total_avg', 0),
-                'low': cached_indicators.get('low', 0),
-                'high': cached_indicators.get('high', 0),
-                'data_count': cached_indicators.get('data_count', 0)
+                'years': today_cached_indicators.get('years', 0),
+                'last_date': today_cached_indicators.get('last_date', ''),
+                'day_avg': today_cached_indicators.get('day_avg', 0),
+                'week_avg': today_cached_indicators.get('week_avg', 0),
+                'month_avg': today_cached_indicators.get('month_avg', 0),
+                'season_avg': today_cached_indicators.get('season_avg', 0),
+                'year_avg': today_cached_indicators.get('year_avg', 0),
+                'total_avg': today_cached_indicators.get('total_avg', 0),
+                'low': today_cached_indicators.get('low', 0),
+                'high': today_cached_indicators.get('high', 0),
+                'data_count': today_cached_indicators.get('data_count', 0)
             }
             
             return jsonify(result)
         
-        # 检查是否需要更新历史数据（每天只需1次）
+        # 检查是否需要更新（每天只更新1次）
         need_update = force_refresh or should_update_history(code)
         
-        if not need_update and not force_refresh:
-            # 使用非今日缓存
-            for filename in os.listdir(LS_DATA_DIR):
-                if filename.startswith(code) and filename.endswith('_indicators.json'):
-                    filepath = os.path.join(LS_DATA_DIR, filename)
-                    with open(filepath, 'r', encoding='utf-8') as f:
-                        cached_indicators = json.load(f)
-                        cached_name = filename.replace(f"{code}_", "").replace("_indicators.json", "")
-                    if cached_indicators:
-                        logger.info(f"使用历史缓存数据: {code}")
-                        current_price = get_realtime_price(code)
-                        name = cached_name or get_stock_name(code)
-                        result = {
-                            'code': code,
-                            'name': name,
-                            'price': round(current_price, 2) if current_price else None,
-                            'years': cached_indicators.get('years', 0),
-                            'last_date': cached_indicators.get('last_date', ''),
-                            'day_avg': cached_indicators.get('day_avg', 0),
-                            'week_avg': cached_indicators.get('week_avg', 0),
-                            'month_avg': cached_indicators.get('month_avg', 0),
-                            'season_avg': cached_indicators.get('season_avg', 0),
-                            'year_avg': cached_indicators.get('year_avg', 0),
-                            'total_avg': cached_indicators.get('total_avg', 0),
-                            'low': cached_indicators.get('low', 0),
-                            'high': cached_indicators.get('high', 0),
-                            'data_count': cached_indicators.get('data_count', 0)
-                        }
-                        return jsonify(result)
+        # 如果需要强制刷新但当天已经更新过，不允许再次更新
+        if force_refresh and not need_update:
+            logger.warning(f"{code} 今日已更新过历史数据，不允许强制再次更新")
+            # 返回今日缓存
+            today_cached, name = get_today_cached_indicators(code)
+            if today_cached:
+                current_price = get_realtime_price(code)
+                result = {
+                    'code': code,
+                    'name': name,
+                    'price': round(current_price, 2) if current_price else None,
+                    'years': today_cached.get('years', 0),
+                    'last_date': today_cached.get('last_date', ''),
+                    'day_avg': today_cached.get('day_avg', 0),
+                    'week_avg': today_cached.get('week_avg', 0),
+                    'month_avg': today_cached.get('month_avg', 0),
+                    'season_avg': today_cached.get('season_avg', 0),
+                    'year_avg': today_cached.get('year_avg', 0),
+                    'total_avg': today_cached.get('total_avg', 0),
+                    'low': today_cached.get('low', 0),
+                    'high': today_cached.get('high', 0),
+                    'data_count': today_cached.get('data_count', 0)
+                }
+                return jsonify(result)
+            else:
+                return jsonify({'error': f'{code} 今日无缓存数据，无法强制刷新'}), 404
         
         # 获取历史数据
         logger.info(f"从BaoStock获取历史数据: {code}")
@@ -590,7 +590,8 @@ def get_stock_history():
         if df is None or len(df) < 30:
             error_msg = f'无法获取足够的历史数据，当前数据量: {len(df) if df is not None else 0}'
             logger.error(error_msg)
-            return jsonify({'error': error_msg}), 404
+            # 禁止返回过期缓存，直接返回错误
+            return jsonify({'error': error_msg, 'no_cache': True}), 404
         
         # 计算各项指标（不含实时价格）
         indicators = calculate_all_indicators(df)
@@ -598,7 +599,7 @@ def get_stock_history():
         if not indicators:
             return jsonify({'error': '数据计算失败'}), 500
         
-        # 获取实时价格
+        # 获取实时价格（实时获取）
         current_price = get_realtime_price(code)
         
         # 获取股票名称
@@ -632,12 +633,12 @@ def get_stock_history():
         
     except Exception as e:
         logger.error(f"获取股票数据失败 {code}: {str(e)}")
-        return jsonify({'error': f'数据获取失败: {str(e)}'}), 500
+        return jsonify({'error': f'数据获取失败: {str(e)}', 'no_cache': True}), 500
 
 
 @app.route('/api/stock/price', methods=['GET'])
 def get_stock_price():
-    """仅获取实时股价"""
+    """仅获取实时股价 - 强制实时获取，不使用任何缓存"""
     code = request.args.get('code')
     
     if not code:
@@ -662,7 +663,7 @@ def get_stock_price():
 
 @app.route('/api/stock/single_update', methods=['POST'])
 def single_stock_update():
-    """单只股票历史数据更新"""
+    """单只股票历史数据更新 - 强制获取新数据，但每天只允许更新一次"""
     data = request.get_json()
     code = data.get('code')
     
@@ -671,6 +672,31 @@ def single_stock_update():
     
     try:
         logger.info(f"单只股票历史数据更新: {code}")
+        
+        # 检查今天是否已经更新过
+        if not should_update_history(code):
+            logger.warning(f"{code} 今日已更新过历史数据，不允许再次更新")
+            # 返回今日缓存数据
+            today_cached, name = get_today_cached_indicators(code)
+            if today_cached:
+                current_price = get_realtime_price(code)
+                result = {
+                    'code': code,
+                    'name': name,
+                    'price': round(current_price, 2) if current_price else None,
+                    'years': today_cached.get('years', 0),
+                    'last_date': today_cached.get('last_date', ''),
+                    'day_avg': today_cached.get('day_avg', 0),
+                    'week_avg': today_cached.get('week_avg', 0),
+                    'month_avg': today_cached.get('month_avg', 0),
+                    'season_avg': today_cached.get('season_avg', 0),
+                    'year_avg': today_cached.get('year_avg', 0),
+                    'total_avg': today_cached.get('total_avg', 0),
+                    'low': today_cached.get('low', 0),
+                    'high': today_cached.get('high', 0),
+                    'data_count': today_cached.get('data_count', 0)
+                }
+                return jsonify(result)
         
         # 强制刷新获取历史数据
         df = fetch_historical_data_baostock(code)
@@ -793,7 +819,8 @@ if __name__ == '__main__':
     print("✅ 数据源: BaoStock (历史数据) + AKShare (实时股价)")
     print("✅ 计算指标: 日均、周均、月均、季均、年均、总均价")
     print("✅ 算法: 基于成交额/成交量的加权均价")
-    print("✅ 历史数据: 每天自动更新1次，优先使用今日缓存")
+    print("✅ 历史数据: 每天自动更新1次，优先使用今日缓存，严禁使用过期缓存")
+    print("✅ 实时价格: 强制实时获取，不使用任何缓存")
     print("=" * 60)
     
     app.run(host='0.0.0.0', port=5001, debug=False, threaded=True)

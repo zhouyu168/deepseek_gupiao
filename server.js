@@ -24,7 +24,7 @@ if (!fs.existsSync(LS_DATA_DIR)) {
 const CACHE_FILE = path.join(LS_DATA_DIR, "stocks_cache.json");
 const STOCKS_LIST_FILE = path.join(LS_DATA_DIR, "stocks_list.json");
 
-// 内存缓存
+// 内存缓存 - 仅用于历史数据缓存，现价数据不缓存
 let memoryCache = {};
 
 // 加载持久化缓存
@@ -33,24 +33,36 @@ function loadPersistentCache() {
         if (fs.existsSync(CACHE_FILE)) {
             const data = fs.readFileSync(CACHE_FILE, 'utf-8');
             const cached = JSON.parse(data);
-            // 过滤过期缓存（24小时）
-            const now = Date.now();
+            // 只保留当天的缓存，过期缓存直接丢弃
+            const now = new Date();
+            const today = now.toDateString();
             Object.keys(cached).forEach(key => {
-                if (now - cached[key].time < 24 * 60 * 60 * 1000) {
+                const cacheDate = new Date(cached[key].time).toDateString();
+                if (cacheDate === today) {
                     memoryCache[key] = cached[key];
                 }
             });
-            console.log(`📦 加载了 ${Object.keys(memoryCache).length} 条持久化缓存`);
+            console.log(`📦 加载了 ${Object.keys(memoryCache).length} 条今日缓存`);
         }
     } catch (error) {
         console.error("加载持久化缓存失败:", error);
     }
 }
 
-// 保存持久化缓存
+// 保存持久化缓存 - 只保存当天的数据
 function savePersistentCache() {
     try {
-        fs.writeFileSync(CACHE_FILE, JSON.stringify(memoryCache, null, 2), 'utf-8');
+        const now = new Date();
+        const today = now.toDateString();
+        // 只保存今天的缓存
+        const todayCache = {};
+        Object.keys(memoryCache).forEach(key => {
+            const cacheDate = new Date(memoryCache[key].time).toDateString();
+            if (cacheDate === today) {
+                todayCache[key] = memoryCache[key];
+            }
+        });
+        fs.writeFileSync(CACHE_FILE, JSON.stringify(todayCache, null, 2), 'utf-8');
     } catch (error) {
         console.error("保存持久化缓存失败:", error);
     }
@@ -137,7 +149,7 @@ app.get("/api/stock", async (req, res) => {
         
         // 计算差价
         let diff = null;
-        if (data.price !== null && data.total_avg) {
+        if (data.price !== null && data.price !== undefined && data.total_avg) {
             diff = data.price - data.total_avg;
         }
         
@@ -162,7 +174,7 @@ app.get("/api/stock", async (req, res) => {
             data_count: data.data_count
         };
         
-        // 存入缓存
+        // 存入缓存（仅缓存历史数据，现价不缓存）
         memoryCache[code] = {
             time: Date.now(),
             data: result
@@ -180,12 +192,18 @@ app.get("/api/stock", async (req, res) => {
     } catch (error) {
         console.error(`❌ 获取失败 ${code}:`, error.message);
         
-        // 尝试返回过期缓存
-        if (memoryCache[code]) {
-            console.log(`📦 返回过期缓存: ${code}`);
-            return res.json(memoryCache[code].data);
+        // 检查是否为无缓存错误
+        if (error.response && error.response.data && error.response.data.no_cache) {
+            console.log(`❌ ${code} 无可用缓存，需要手动刷新`);
+            return res.status(404).json({ 
+                error: "获取失败，无可用缓存", 
+                message: error.message,
+                code: code,
+                no_cache: true
+            });
         }
         
+        // 其他错误，返回错误信息
         res.status(500).json({ 
             error: "获取失败", 
             message: error.message,
@@ -219,7 +237,7 @@ app.post("/api/stock/single_update", async (req, res) => {
         
         // 计算差价
         let diff = null;
-        if (data.price !== null && data.total_avg) {
+        if (data.price !== null && data.price !== undefined && data.total_avg) {
             diff = data.price - data.total_avg;
         }
         
@@ -263,7 +281,7 @@ app.post("/api/stock/single_update", async (req, res) => {
     }
 });
 
-// 仅获取实时价格（不使用缓存）
+// 仅获取实时价格（强制实时获取，不使用缓存）
 app.get("/api/stock/price", async (req, res) => {
     const code = req.query.code;
     
@@ -277,7 +295,11 @@ app.get("/api/stock/price", async (req, res) => {
             timeout: 10000
         });
         
-        res.json(response.data);
+        if (response.data && response.data.price !== undefined) {
+            res.json(response.data);
+        } else {
+            res.status(404).json({ error: "获取实时价格失败" });
+        }
     } catch (error) {
         console.error(`获取实时价格失败 ${code}:`, error.message);
         res.status(500).json({ error: "获取实时价格失败", message: error.message });
@@ -293,6 +315,7 @@ app.post("/api/stock/prices", async (req, res) => {
     }
     
     const results = {};
+    const errors = [];
     
     for (const code of codes) {
         try {
@@ -300,18 +323,22 @@ app.post("/api/stock/prices", async (req, res) => {
                 params: { code: code },
                 timeout: 10000
             });
-            if (response.data && response.data.price) {
+            if (response.data && response.data.price !== undefined) {
                 results[code] = response.data.price;
+            } else {
+                results[code] = null;
+                errors.push(code);
             }
             // 请求间隔
             await new Promise(resolve => setTimeout(resolve, 1000));
         } catch (error) {
             console.error(`获取价格失败 ${code}:`, error.message);
             results[code] = null;
+            errors.push(code);
         }
     }
     
-    res.json({ prices: results });
+    res.json({ prices: results, errors: errors });
 });
 
 // 保存股票列表

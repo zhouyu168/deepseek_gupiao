@@ -161,6 +161,18 @@
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid #dee2e6;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .stats-left {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        .stats-right {
+            display: flex;
+            gap: 20px;
+            align-items: center;
         }
         .badge {
             background: #28a745;
@@ -172,7 +184,20 @@
         .badge-warning {
             background: #ffc107;
             color: #333;
-        }       
+        }
+        .update-status {
+            font-size: 13px;
+            padding: 4px 12px;
+            border-radius: 20px;
+        }
+        .update-status.history {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        .update-status.price {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
         .table-container {
             overflow-x: auto;
             max-height: 65vh;
@@ -393,12 +418,17 @@
             <button id="refreshBtn">🔄 立即刷新全部</button>
             <button id="addRowBtn">➕ 添加股票</button>
             <button id="clearCacheBtn" class="danger">🗑️ 清除缓存</button>
-            <button id="saveStocksBtn" class="warning">💾 保存列表</button>           
+            <button id="saveStocksBtn" class="warning">💾 保存列表</button>      
         </div>
         
         <div class="stats-bar">
-            <div><span class="badge" id="stockCount">0</span> 只股票--数据仅供参考！任何损失后果自负！</div>
-            <div id="updateStatus" style="color: #6c757d; font-size: 17px;"></div>
+            <div class="stats-left">
+                <span class="badge" id="stockCount">0</span> 只股票--数据仅供参考！任何损失后果自负！
+            </div>
+            <div class="stats-right">
+                <span id="historyUpdateStatus" class="update-status history">📊 历史数据: 等待更新</span>
+                <span id="priceUpdateStatus" class="update-status price">💰 现价数据: 等待更新</span>
+            </div>
             <div id="lastUpdateTime" class="last-update"></div>
         </div>
         
@@ -467,7 +497,8 @@
         const errorMessage = document.getElementById('errorMessage');
         const successMessage = document.getElementById('successMessage');
         const stockCount = document.getElementById('stockCount');
-        const updateStatus = document.getElementById('updateStatus');
+        const historyUpdateStatus = document.getElementById('historyUpdateStatus');
+        const priceUpdateStatus = document.getElementById('priceUpdateStatus');
         const lastUpdateTime = document.getElementById('lastUpdateTime');
         
         // 全局禁用所有控件
@@ -680,15 +711,15 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ stocks: stocksToSave })
             }).then(response => response.json())
-             .then(data => {
+            .then(data => {
                 if (data.message) {
                     console.log('股票列表已保存:', data.message);
                 } else {
                     console.error('保存股票列表失败:', data);
                 }
-             }).catch(err => {
+            }).catch(err => {
                 console.error('保存股票列表失败:', err);
-             });
+            });
         }
         
         function getMarketType(code) {
@@ -743,21 +774,26 @@
             cells[12].textContent = data.high ? data.high.toFixed(2) : '-';
             cells[13].textContent = data.total_avg ? data.total_avg.toFixed(2) : '-';
             
-            // 现价背景色：大于总均价为红色，小于为绿色
+            // 现价列 - 确保能正确显示
             const priceCell = cells[14];
-            priceCell.textContent = data.price !== null && data.price !== undefined ? data.price.toFixed(2) : '-';
-            if (data.price !== null && data.total_avg) {
-                if (data.price > data.total_avg) {
-                    priceCell.className = 'price-red';
-                } else if (data.price < data.total_avg) {
-                    priceCell.className = 'price-green';
-                } else {
-                    priceCell.className = '';
+            if (data.price !== null && data.price !== undefined && !isNaN(data.price)) {
+                priceCell.textContent = data.price.toFixed(2);
+                if (data.total_avg) {
+                    if (data.price > data.total_avg) {
+                        priceCell.className = 'price-red';
+                    } else if (data.price < data.total_avg) {
+                        priceCell.className = 'price-green';
+                    } else {
+                        priceCell.className = '';
+                    }
                 }
+            } else {
+                priceCell.textContent = '-';
+                priceCell.className = '';
             }
             
-            // 差价背景色：正为红色，负为绿色
-            if (data.diff !== null && data.diff !== undefined) {
+            // 差价列
+            if (data.diff !== null && data.diff !== undefined && !isNaN(data.diff)) {
                 const diffCell = cells[15];
                 diffCell.textContent = `${data.diff_sign}${data.diff.toFixed(2)}`;
                 if (data.diff > 0) {
@@ -812,7 +848,7 @@
             }
             
             try {
-                updateStatus.textContent = `🔄 正在更新 ${stock.code} 历史数据...`;
+                historyUpdateStatus.textContent = `📊 历史数据: 正在更新 ${stock.code}...`;
                 
                 const response = await fetch('/api/stock/single_update', {
                     method: 'POST',
@@ -839,14 +875,14 @@
                 // 保存整个列表数据
                 saveStocksList();
                 
-                updateStatus.textContent = `✅ ${stock.code} 历史数据更新完成`;
+                historyUpdateStatus.textContent = `📊 历史数据: ${stock.code} 更新完成`;
                 showSuccess(`${stock.code} ${data.name} 历史数据更新成功`);
                 
                 setTimeout(() => {
-                    if (updateStatus.textContent.includes('更新完成')) {
-                        updateStatus.textContent = '';
+                    if (historyUpdateStatus.textContent.includes('更新完成')) {
+                        historyUpdateStatus.textContent = '📊 历史数据: 已更新';
                     }
-                }, 2000);
+                }, 3000);
                 
             } catch (error) {
                 console.error(`单只股票更新失败 ${stock.code}:`, error);
@@ -858,6 +894,7 @@
                         row.cells[j].textContent = '-';
                     }
                 }
+                historyUpdateStatus.textContent = `📊 历史数据: ${stock.code} 更新失败`;
             } finally {
                 if (refreshBtnCell) {
                     refreshBtnCell.classList.remove('refreshing');
@@ -872,7 +909,12 @@
                 
                 // 重启倒计时
                 startTimers();
-                updateStatus.textContent = '';
+                
+                setTimeout(() => {
+                    if (historyUpdateStatus.textContent.includes('更新失败') || historyUpdateStatus.textContent.includes('更新完成')) {
+                        historyUpdateStatus.textContent = '📊 历史数据: 等待更新';
+                    }
+                }, 3000);
             }
         }
         
@@ -898,7 +940,7 @@
             }
             
             isHistoryUpdating = true;
-            updateStatus.textContent = '🔄 正在更新历史数据...';
+            historyUpdateStatus.textContent = '📊 历史数据: 正在更新全部...';
             
             // 停止倒计时
             stopTimers();
@@ -908,6 +950,7 @@
             
             let successCount = 0;
             let failCount = 0;
+            let noCacheCount = 0;
             
             for (let i = 0; i < stocks.length; i++) {
                 const stock = stocks[i];
@@ -934,6 +977,9 @@
                     }
                 } catch (error) {
                     failCount++;
+                    if (error.message.includes('无可用缓存')) {
+                        noCacheCount++;
+                    }
                     for (let j = 4; j <= 15; j++) {
                         if (row.cells[j]) {
                             row.cells[j].textContent = '错误';
@@ -949,14 +995,18 @@
             // 保存整个列表数据
             saveStocksList();
             
-            updateStatus.textContent = `✅ 历史数据更新完成 | 成功: ${successCount} | 失败: ${failCount}`;
-            lastUpdateTime.textContent = `最后更新: ${new Date().toLocaleTimeString()}`;
+            let statusMsg = `📊 历史数据: 更新完成 | 成功: ${successCount} | 失败: ${failCount}`;
+            if (noCacheCount > 0) {
+                statusMsg += ` | ${noCacheCount}只无缓存`;
+            }
+            historyUpdateStatus.textContent = statusMsg;
+            lastUpdateTime.textContent = `历史更新: ${new Date().toLocaleTimeString()}`;
             
             setTimeout(() => {
-                if (updateStatus.textContent.includes('更新完成')) {
-                    updateStatus.textContent = '';
+                if (historyUpdateStatus.textContent.includes('更新完成')) {
+                    historyUpdateStatus.textContent = '📊 历史数据: 等待更新';
                 }
-            }, 3000);
+            }, 5000);
             
             // 启用所有控件
             enableAllControls();
@@ -968,7 +1018,7 @@
             isHistoryUpdating = false;
         }
         
-        // 仅更新现价
+        // 仅更新现价 - 强制实时获取
         async function updatePricesOnly() {
             if (isPriceUpdating || isHistoryUpdating || isSingleUpdating) {
                 console.log('现价更新中，跳过本次请求');
@@ -976,7 +1026,7 @@
             }
             
             isPriceUpdating = true;
-            updateStatus.textContent = '🔄 正在更新现价...';
+            priceUpdateStatus.textContent = '💰 现价数据: 正在更新...';
             
             let successCount = 0;
             let failCount = 0;
@@ -990,10 +1040,14 @@
                 if (!row) continue;
                 
                 try {
+                    // 显示现价列加载状态
+                    const priceCell = row.cells[14];
+                    priceCell.innerHTML = '<div class="loading"></div>';
+                    
                     const response = await fetch(`/api/stock/price?code=${stock.code}`);
                     const data = await response.json();
                     
-                    if (data && data.price !== undefined) {
+                    if (data && data.price !== undefined && data.price !== null) {
                         const newPrice = data.price;
                         stock.data.price = newPrice;
                         const diff = newPrice - stock.data.total_avg;
@@ -1004,7 +1058,6 @@
                         successCount++;
                     } else {
                         // 实时价格获取失败，现价空缺
-                        const priceCell = row.cells[14];
                         priceCell.textContent = '-';
                         priceCell.className = '';
                         failCount++;
@@ -1020,14 +1073,14 @@
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
             
-            updateStatus.textContent = `✅ 现价更新完成 | 成功: ${successCount} | 失败: ${failCount}`;
-            lastUpdateTime.textContent = `最后更新: ${new Date().toLocaleTimeString()}`;
+            priceUpdateStatus.textContent = `💰 现价数据: 更新完成 | 成功: ${successCount} | 失败: ${failCount}`;
+            lastUpdateTime.textContent = `现价更新: ${new Date().toLocaleTimeString()}`;
             
             setTimeout(() => {
-                if (updateStatus.textContent.includes('更新完成')) {
-                    updateStatus.textContent = '';
+                if (priceUpdateStatus.textContent.includes('更新完成')) {
+                    priceUpdateStatus.textContent = '💰 现价数据: 等待更新';
                 }
-            }, 2000);
+            }, 3000);
             
             isPriceUpdating = false;
         }
@@ -1052,7 +1105,7 @@
             // 禁用按钮
             disableAllControls();
             
-            updateStatus.textContent = '🗑️ 正在清除缓存...';
+            historyUpdateStatus.textContent = '🗑️ 正在清除缓存...';
             
             try {
                 const response = await fetch('/api/stock/clear', { method: 'POST' });
@@ -1072,7 +1125,7 @@
                 showError('清除缓存失败');
             }
             
-            updateStatus.textContent = '';
+            historyUpdateStatus.textContent = '📊 历史数据: 等待更新';
             isClearingCache = false;
             
             // 启用所有控件
@@ -1272,7 +1325,7 @@
             stopTimers();
             
             // 更新所有数据
-            updateStatus.textContent = '🔄 首次加载，正在获取历史数据...';
+            historyUpdateStatus.textContent = '📊 历史数据: 首次加载中...';
             isInitialLoad = true;
             await updateAllStocks();
             isInitialLoad = false;
