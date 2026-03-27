@@ -1,5 +1,5 @@
 """
-股票数据服务 - 使用BaoStock获取历史数据，AKShare获取实时股价
+股票数据服务 - 使用BaoStock获取历史数据，新浪财经/AKShare获取实时股价
 运行命令: python data_service.py
 端口: 5001
 """
@@ -16,6 +16,7 @@ import sys
 import urllib3
 import threading
 import random
+import requests
 
 # 禁用SSL警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -146,6 +147,109 @@ def get_stock_name(code):
     return default_names.get(code, code)
 
 
+def get_realtime_price_sina(code):
+    """优先方法：新浪财经获取实时股价"""
+    try:
+        # 频率限制
+        rate_limit(code)
+        
+        # 添加随机延时，避免高频请求
+        time.sleep(random.uniform(0.3, 0.8))
+        
+        if code.startswith('6'):
+            market = 'sh'
+        else:
+            market = 'sz'
+        
+        url = f"http://hq.sinajs.cn/list={market}{code}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': 'https://finance.sina.com.cn',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'zh-CN,zh;q=0.9'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=8)
+        response.encoding = 'gbk'
+        
+        if response.status_code == 200:
+            content = response.text
+            if '="' in content:
+                data_part = content.split('="')[1].split('"')[0]
+                parts = data_part.split(',')
+                if len(parts) > 3:
+                    current_price = float(parts[3])
+                    logger.info(f"✅ 新浪财经获取实时价格成功 {code}: {current_price}")
+                    return current_price
+            else:
+                logger.warning(f"新浪财经返回数据格式异常: {code}")
+        
+        return None
+    except requests.Timeout:
+        logger.warning(f"新浪财经请求超时 {code}")
+        return None
+    except Exception as e:
+        logger.error(f"新浪财经获取实时价格失败 {code}: {e}")
+        return None
+
+
+def get_realtime_price_akshare(code):
+    """备用方法：AKShare获取实时股价"""
+    try:
+        import akshare as ak
+        
+        # 频率限制
+        rate_limit(code)
+        
+        # 添加随机延时，避免高频请求
+        time.sleep(random.uniform(0.5, 1.2))
+        
+        # 设置超时
+        import socket
+        socket.setdefaulttimeout(10)
+        
+        # 获取实时行情
+        spot_data = ak.stock_zh_a_spot_em()
+        
+        # 查找指定股票
+        stock_data = spot_data[spot_data['代码'] == code]
+        
+        if not stock_data.empty:
+            row = stock_data.iloc[0]
+            current_price = float(row['最新价'])
+            logger.info(f"✅ AKShare获取实时价格成功 {code}: {current_price}")
+            return current_price
+        else:
+            logger.warning(f"AKShare未找到股票: {code}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"AKShare获取实时价格失败 {code}: {e}")
+        return None
+
+
+def get_realtime_price(code):
+    """
+    获取实时股价（主方法）
+    优先使用新浪财经，AKShare作为备用
+    不使用任何缓存，强制实时获取
+    """
+    # 优先使用新浪财经
+    logger.info(f"尝试新浪财经获取实时价格: {code}")
+    price = get_realtime_price_sina(code)
+    if price is not None:
+        return price
+    
+    # 备用：AKShare
+    logger.info(f"新浪财经失败，尝试AKShare: {code}")
+    price = get_realtime_price_akshare(code)
+    if price is not None:
+        return price
+    
+    logger.error(f"所有接口均无法获取实时价格: {code}")
+    return None
+
+
 def fetch_historical_data_baostock(code):
     """使用BaoStock获取上市至今的历史交易数据"""
     try:
@@ -223,92 +327,6 @@ def fetch_historical_data_baostock(code):
     except Exception as e:
         logger.error(f"BaoStock获取历史数据失败 {code}: {e}")
         return None
-
-
-def get_realtime_price_akshare(code):
-    """使用AKShare获取实时股价"""
-    try:
-        import akshare as ak
-        
-        # 频率限制
-        rate_limit(code)
-        
-        # 添加随机延时，避免高频请求
-        time.sleep(random.uniform(0.5, 1.5))
-        
-        # 获取实时行情
-        spot_data = ak.stock_zh_a_spot_em()
-        
-        # 查找指定股票
-        stock_data = spot_data[spot_data['代码'] == code]
-        
-        if not stock_data.empty:
-            row = stock_data.iloc[0]
-            current_price = float(row['最新价'])
-            logger.info(f"AKShare获取实时价格 {code}: {current_price}")
-            return current_price
-        else:
-            logger.warning(f"AKShare未找到股票: {code}")
-            return None
-            
-    except Exception as e:
-        logger.error(f"AKShare获取实时价格失败 {code}: {e}")
-        return None
-
-
-def get_realtime_price_sina(code):
-    """备用方法：新浪财经获取实时股价"""
-    try:
-        import requests
-        
-        # 频率限制
-        rate_limit(code)
-        
-        if code.startswith('6'):
-            market = 'sh'
-        else:
-            market = 'sz'
-        
-        url = f"http://hq.sinajs.cn/list={market}{code}"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Referer': 'https://finance.sina.com.cn'
-        }
-        
-        response = requests.get(url, headers=headers, timeout=5)
-        response.encoding = 'gbk'
-        
-        if response.status_code == 200:
-            content = response.text
-            if '="' in content:
-                data_part = content.split('="')[1].split('"')[0]
-                parts = data_part.split(',')
-                if len(parts) > 3:
-                    current_price = float(parts[3])
-                    logger.info(f"新浪财经获取实时价格 {code}: {current_price}")
-                    return current_price
-        
-        return None
-    except Exception as e:
-        logger.error(f"新浪财经获取实时价格失败 {code}: {e}")
-        return None
-
-
-def get_realtime_price(code):
-    """获取实时股价（主方法）- 不使用任何缓存"""
-    # 优先使用AKShare
-    price = get_realtime_price_akshare(code)
-    if price is not None:
-        return price
-    
-    # 备用：新浪财经
-    logger.info(f"AKShare失败，尝试新浪财经: {code}")
-    price = get_realtime_price_sina(code)
-    if price is not None:
-        return price
-    
-    logger.error(f"所有接口均无法获取实时价格: {code}")
-    return None
 
 
 def calculate_daily_avg_price(df):
@@ -765,11 +783,14 @@ def health():
     except:
         pass
     
+    sina_available = True  # 新浪财经通常可用
+    
     return jsonify({
         'status': 'ok',
         'service': 'stock_data_service',
         'baostock': baostock_available,
         'akshare': akshare_available,
+        'sina': sina_available,
         'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     })
 
@@ -816,11 +837,11 @@ if __name__ == '__main__':
     print("📈 测试: http://localhost:5001/api/stock/history?code=600519")
     print("💹 健康检查: http://localhost:5001/api/health")
     print("=" * 60)
-    print("✅ 数据源: BaoStock (历史数据) + AKShare (实时股价)")
+    print("✅ 数据源: BaoStock (历史数据) + 新浪财经 (实时股价优先) + AKShare (备用)")
     print("✅ 计算指标: 日均、周均、月均、季均、年均、总均价")
     print("✅ 算法: 基于成交额/成交量的加权均价")
     print("✅ 历史数据: 每天自动更新1次，优先使用今日缓存，严禁使用过期缓存")
-    print("✅ 实时价格: 强制实时获取，不使用任何缓存")
+    print("✅ 实时价格: 强制实时获取，优先新浪财经，AKShare备用，不使用任何缓存")
     print("=" * 60)
     
     app.run(host='0.0.0.0', port=5001, debug=False, threaded=True)
